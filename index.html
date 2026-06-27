@@ -1,0 +1,1636 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>PRIME MX · Supervisión de Tiendas</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+/* ===== DESIGN SYSTEM – PRIME MX PORTAL ===== */
+:root{
+  /* Brand */
+  --brand-from:#16123f;--brand-to:#2a1d72;
+  --brand-grad:linear-gradient(135deg,var(--brand-from) 0%,var(--brand-to) 100%);
+  --orange:#F47920;--orange-dark:#C95E0F;--orange-glow:rgba(244,121,32,.18);
+
+  /* Ink */
+  --ink:#111827;--ink-soft:#6b7280;--ink-muted:#9ca3af;--ink-on-brand:#e8e4ff;
+
+  /* Surfaces */
+  --bg:#eef1f8;--surface:#ffffff;--surface-2:#f5f6fa;--line:#e5e7eb;--line-2:#d1d5db;
+
+  /* State colours */
+  --green:#059669;--green-bg:#d1fae5;--green-border:#6ee7b7;
+  --red:#dc2626;--red-bg:#fee2e2;--red-border:#fca5a5;
+  --amber:#d97706;--amber-bg:#fef3c7;--amber-border:#fcd34d;
+  --purple:#7c3aed;--purple-bg:#ede9fe;--purple-border:#c4b5fd;
+  --blue:#2563eb;--blue-bg:#dbeafe;
+
+  /* Radius & shadow */
+  --radius:12px;--radius-sm:8px;--radius-xs:6px;
+  --shadow:0 1px 3px rgba(16,16,40,.07),0 4px 14px rgba(16,16,40,.09);
+  --shadow-lg:0 8px 32px rgba(22,18,63,.18);
+  font-size:15px
+}
+
+/* === RESET === */
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;height:100%}
+body{font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--ink);line-height:1.5;display:flex;flex-direction:column;min-height:100vh}
+h1,h2,h3,h4{margin:0;font-weight:700;letter-spacing:-.01em}
+button{font-family:inherit;cursor:pointer}
+input,select,textarea{font-family:inherit;font-size:14px}
+
+/* === TOPBAR === */
+.topbar{background:var(--brand-grad);padding:0 22px;height:56px;display:flex;align-items:center;gap:14px;position:sticky;top:0;z-index:100;box-shadow:0 2px 12px rgba(22,18,63,.35)}
+.brand{display:flex;align-items:center;gap:10px;flex:1}
+.brand-name{font-weight:900;font-size:19px;letter-spacing:-.03em;color:#fff}
+.brand-name span{color:var(--orange)}
+.brand-sep{color:rgba(255,255,255,.3);font-weight:300;font-size:20px;margin:0 2px}
+.brand-sub{font-size:11px;color:rgba(255,255,255,.55);margin-top:1px;letter-spacing:.01em}
+.topbar-actions{display:flex;gap:6px;align-items:center}
+.user-chip{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);border-radius:99px;padding:4px 12px;font-size:12px;font-weight:600;color:#fff}
+
+/* === BUTTONS === */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:var(--radius-sm);border:1px solid var(--line-2);background:var(--surface);color:var(--ink);font-size:13px;font-weight:500;transition:all .15s;cursor:pointer}
+.btn:hover{background:var(--surface-2);border-color:var(--line-2)}
+.btn-primary{background:var(--orange);border-color:var(--orange);color:#fff;font-weight:600}
+.btn-primary:hover{background:var(--orange-dark);border-color:var(--orange-dark)}
+.btn-ghost{border-color:transparent;background:transparent;color:rgba(255,255,255,.8)}
+.btn-ghost:hover{background:rgba(255,255,255,.1);color:#fff}
+.btn-sm{padding:5px 11px;font-size:12px}
+.btn-outline{background:transparent;border-color:rgba(255,255,255,.3);color:#fff}
+.btn-outline:hover{background:rgba(255,255,255,.1)}
+
+/* === LOGIN === */
+.login-screen{flex:1;display:flex;align-items:center;justify-content:center;padding:40px 20px;background:var(--brand-grad)}
+.login-card{background:var(--surface);border-radius:20px;padding:40px 36px;width:100%;max-width:400px;box-shadow:var(--shadow-lg)}
+.login-logo{text-align:center;margin-bottom:28px}
+.login-logo .logotype{font-size:32px;font-weight:900;letter-spacing:-.04em;color:#111827}
+.login-logo .logotype span{color:var(--orange)}
+.login-logo .brand-sub{font-size:13px;color:var(--ink-soft);margin-top:6px}
+.field{display:flex;flex-direction:column;gap:5px;margin-bottom:16px}
+.field label{font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-soft)}
+.field input{padding:10px 13px;border:1.5px solid var(--line);border-radius:var(--radius-sm);outline:none;transition:border-color .15s;font-size:14px}
+.field input:focus{border-color:var(--orange);box-shadow:0 0 0 3px var(--orange-glow)}
+.login-error{color:var(--red);font-size:13px;margin-bottom:12px;display:none;background:var(--red-bg);padding:8px 12px;border-radius:var(--radius-xs);border:1px solid var(--red-border)}
+.login-error.visible{display:block}
+.login-card .btn-primary{width:100%;justify-content:center;padding:12px;font-size:14px;border-radius:var(--radius-sm)}
+.login-hint{font-size:12px;color:var(--ink-muted);text-align:center;margin-top:14px}
+
+/* === HOME (regional list) === */
+.home{flex:1;padding:32px 28px}
+.home-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.home-head h2{font-size:21px;color:var(--ink)}
+.home-note{font-size:13px;color:var(--ink-soft);margin-bottom:22px}
+.home-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:16px}
+.new-card{background:var(--surface);border:2px dashed var(--line-2);border-radius:var(--radius);padding:32px;display:flex;flex-direction:column;align-items:center;gap:8px;color:var(--ink-soft);font-size:15px;font-weight:500;transition:all .15s;cursor:pointer}
+.new-card:hover{border-color:var(--orange);color:var(--orange);box-shadow:0 0 0 4px var(--orange-glow)}
+.new-card .plus{font-size:30px;font-weight:200;line-height:1}
+.visita-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:18px;cursor:pointer;transition:all .15s;position:relative;box-shadow:var(--shadow)}
+.visita-card:hover{box-shadow:var(--shadow-lg);border-color:var(--orange);transform:translateY(-1px)}
+.card-actions{position:absolute;top:12px;right:12px;display:flex;gap:4px;opacity:0;transition:opacity .15s}
+.visita-card:hover .card-actions{opacity:1}
+.icon-btn{background:none;border:none;padding:4px 7px;border-radius:var(--radius-xs);font-size:14px;color:var(--ink-soft);cursor:pointer}
+.icon-btn:hover{background:var(--surface-2);color:var(--ink)}
+.visita-card .store{font-weight:700;font-size:15px;margin-bottom:3px;color:var(--ink)}
+.visita-card .meta{font-size:12px;color:var(--ink-soft);margin-bottom:12px}
+.progress-row{display:flex;align-items:center;gap:8px}
+.progress-track{flex:1;height:5px;background:var(--bg);border-radius:99px;overflow:hidden}
+.progress-fill{height:100%;background:var(--orange);border-radius:99px;transition:width .35s}
+.progress-pct{font-size:11px;font-weight:700;color:var(--ink-soft);min-width:30px;text-align:right}
+
+/* === DASHBOARD (maestro) === */
+.dashboard{flex:1;padding:32px 28px;overflow-y:auto}
+.dash-head{margin-bottom:22px}
+.dash-head h2{font-size:22px;margin-bottom:4px}
+.dash-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-bottom:30px}
+.stat-box{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:18px;text-align:center;box-shadow:var(--shadow)}
+.stat-box .val{font-size:30px;font-weight:800;color:var(--orange);line-height:1}
+.stat-box .lbl{font-size:12px;color:var(--ink-soft);margin-top:4px}
+.regional-section{margin-bottom:26px}
+.regional-header{font-size:13px;font-weight:700;color:var(--ink);background:var(--surface);border:1px solid var(--line);padding:9px 14px;border-radius:var(--radius-sm);margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;box-shadow:var(--shadow)}
+.regional-header .cnt{font-size:11px;font-weight:600;color:var(--ink-soft)}
+.dash-table{width:100%;border-collapse:collapse;font-size:13px;background:var(--surface);border-radius:var(--radius);overflow:hidden;border:1px solid var(--line);box-shadow:var(--shadow)}
+.dash-table th{text-align:left;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft);padding:9px 13px;border-bottom:1px solid var(--line);background:var(--surface-2)}
+.dash-table td{padding:9px 13px;border-bottom:1px solid var(--bg);vertical-align:middle}
+.dash-table tr:last-child td{border-bottom:none}
+.dash-table tr:hover td{background:var(--bg)}
+
+/* === UTILITY === */
+.hidden{display:none!important}
+
+/* === WIZARD === */
+.wizard{display:flex;flex:1;overflow:hidden}
+.sidebar{width:210px;background:var(--brand-grad);padding:20px 12px;overflow-y:auto;flex-shrink:0}
+.sidebar-title{font-size:10px;font-weight:700;color:rgba(255,255,255,.4);letter-spacing:.09em;text-transform:uppercase;padding:0 10px;margin-bottom:10px}
+.step-item{display:flex;align-items:center;gap:9px;padding:9px 10px;border-radius:var(--radius-sm);border:none;background:none;width:100%;text-align:left;font-size:13px;color:rgba(255,255,255,.6);cursor:pointer;transition:all .15s}
+.step-item:hover{background:rgba(255,255,255,.1);color:#fff}
+.step-item.active{background:var(--orange);color:#fff;box-shadow:0 2px 8px rgba(244,121,32,.4)}
+.step-item.done{color:rgba(255,255,255,.85)}
+.step-num{width:22px;height:22px;border-radius:50%;background:rgba(255,255,255,.12);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:rgba(255,255,255,.7)}
+.step-item.active .step-num{background:rgba(255,255,255,.25);color:#fff}
+.step-item.done .step-num{background:var(--green-bg);color:var(--green)}
+.label-text{flex:1;font-size:12.5px}
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.main-scroll{flex:1;overflow-y:auto;padding:30px 36px;background:var(--bg)}
+.footer-nav{padding:13px 28px;background:var(--surface);border-top:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;box-shadow:0 -1px 0 var(--line)}
+.save-note{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ink-soft)}
+.save-dot{width:7px;height:7px;border-radius:50%;background:var(--green)}
+.nav-btns{display:flex;gap:8px}
+
+/* === STEP CONTENT === */
+.step-header{margin-bottom:26px}
+.step-header h2{font-size:22px;margin-bottom:5px;color:var(--ink)}
+.step-header p{font-size:14px;color:var(--ink-soft);margin:0}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:22px;margin-bottom:16px;box-shadow:var(--shadow)}
+.card-title{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-muted);margin-bottom:16px;display:flex;align-items:center;gap:8px}
+.card-title::after{content:'';flex:1;height:1px;background:var(--line)}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.form-grid.full{grid-template-columns:1fr}
+.field-inline{display:flex;flex-direction:column;gap:5px}
+.field-inline label{font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-soft)}
+.field-inline input,.field-inline select{padding:9px 11px;border:1.5px solid var(--line);border-radius:var(--radius-sm);outline:none;background:var(--surface);transition:border-color .15s,box-shadow .15s;font-size:14px}
+.field-inline input:focus,.field-inline select:focus{border-color:var(--orange);box-shadow:0 0 0 3px var(--orange-glow)}
+.field-inline input[readonly]{background:var(--surface-2);color:var(--ink-soft);cursor:default;border-color:var(--line)}
+
+/* === ARQUEO TABLES === */
+.arq-table{width:100%;border-collapse:collapse;font-size:14px}
+.arq-table th{text-align:left;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-muted);padding:7px 11px;border-bottom:1px solid var(--line)}
+.arq-table td{padding:6px 11px;border-bottom:1px solid var(--bg)}
+.arq-table td input{width:96px;padding:5px 8px;border:1.5px solid var(--line);border-radius:var(--radius-xs);text-align:right;outline:none;font-size:13px}
+.arq-table td input:focus{border-color:var(--orange);box-shadow:0 0 0 3px var(--orange-glow)}
+.arq-total-row td{font-weight:700;border-top:2px solid var(--line);padding-top:10px;color:var(--ink)}
+
+/* === RESULT BOXES === */
+.result-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:13px;margin-bottom:16px}
+.result-box{background:var(--surface-2);border:1px solid var(--line);border-radius:var(--radius-sm);padding:16px 20px;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.result-box .val{font-size:22px;font-weight:800;color:var(--ink);line-height:1}
+.result-box .lbl{font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-soft);margin-top:6px;text-align:center;line-height:1.5;hyphens:auto}
+.result-box.green{background:var(--green-bg);border-color:var(--green-border)}.result-box.green .val{color:var(--green)}
+.result-box.red{background:var(--red-bg);border-color:var(--red-border)}.result-box.red .val{color:var(--red)}
+.result-box.amber{background:var(--amber-bg);border-color:var(--amber-border)}.result-box.amber .val{color:var(--amber)}
+
+/* === UPLOADS & IMEI === */
+.upload-area{border:2px dashed var(--line-2);border-radius:var(--radius-sm);padding:22px;text-align:center;cursor:pointer;transition:all .15s;margin-bottom:12px;background:var(--surface-2)}
+.upload-area:hover{border-color:var(--orange);background:var(--orange-glow)}
+.upload-label{font-size:12px;color:var(--ink-soft);margin-top:5px}
+.imei-input-row{display:flex;gap:8px;margin-bottom:12px}
+.imei-input-row input{flex:1;padding:9px 12px;border:1.5px solid var(--line);border-radius:var(--radius-sm);outline:none;font-size:14px}
+.imei-input-row input:focus{border-color:var(--orange);box-shadow:0 0 0 3px var(--orange-glow)}
+.imei-list{max-height:230px;overflow-y:auto;border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--surface)}
+.imei-row{display:flex;align-items:center;justify-content:space-between;padding:8px 13px;font-size:13px;border-bottom:1px solid var(--bg)}
+.imei-row:last-child{border-bottom:none}
+
+/* === CHIPS === */
+.chip{display:inline-block;padding:2px 9px;border-radius:99px;font-size:11px;font-weight:700}
+.chip.green{background:var(--green-bg);color:var(--green)}
+.chip.red{background:var(--red-bg);color:var(--red)}
+.chip.amber{background:var(--amber-bg);color:var(--amber)}
+.chip.purple{background:var(--purple-bg);color:var(--purple)}
+.chip.blue{background:var(--blue-bg);color:var(--blue)}
+
+/* === DATA TABLE === */
+.data-table{width:100%;border-collapse:collapse;font-size:13px}
+.data-table th{text-align:left;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-muted);padding:7px 9px;border-bottom:1.5px solid var(--line);white-space:nowrap;background:var(--surface-2)}
+.data-table td{padding:6px 9px;border-bottom:1px solid var(--bg);vertical-align:middle}
+.data-table td input,.data-table td select{padding:4px 8px;border:1px solid var(--line);border-radius:var(--radius-xs);outline:none;background:var(--surface);width:100%;font-size:12px}
+.data-table td input:focus,.data-table td select:focus{border-color:var(--orange)}
+.paste-area{width:100%;padding:9px 11px;border:1.5px solid var(--line);border-radius:var(--radius-sm);font-size:12px;resize:vertical;outline:none;min-height:60px;background:var(--surface)}
+.paste-area:focus{border-color:var(--orange);box-shadow:0 0 0 3px var(--orange-glow)}
+
+/* === RADIO BUTTONS === */
+.checklist-radio-group{display:flex;gap:4px}
+.radio-btn{padding:3px 10px;border:1px solid var(--line);border-radius:var(--radius-xs);font-size:11px;font-weight:700;background:var(--surface);cursor:pointer;transition:all .12s}
+.radio-btn.si.active{background:var(--green-bg);border-color:var(--green-border);color:var(--green)}
+.radio-btn.no.active{background:var(--red-bg);border-color:var(--red-border);color:var(--red)}
+
+/* === RESUMEN === */
+.resumen-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-bottom:18px}
+.resumen-box{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:18px;text-align:center;box-shadow:var(--shadow)}
+.resumen-box .val{font-size:26px;font-weight:800;margin-bottom:3px;line-height:1}
+.resumen-box .lbl{font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-soft)}
+.pdf-btns{display:flex;gap:10px;flex-wrap:wrap}
+
+/* === INFO BOX === */
+.info-box{background:var(--blue-bg);border:1px solid #bfdbfe;border-radius:var(--radius-sm);padding:14px 16px;font-size:13px;color:#1e40af;margin-top:16px}
+
+/* === TOAST === */
+.toast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%) translateY(16px);background:var(--brand-from);color:#fff;padding:11px 22px;border-radius:99px;font-size:13px;opacity:0;pointer-events:none;transition:all .25s;z-index:9999;font-weight:500;box-shadow:var(--shadow-lg)}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* === USER PROFILE MENU === */
+.user-menu{display:flex;align-items:center;gap:10px;cursor:pointer;padding:5px 8px;border-radius:10px;transition:background .15s;position:relative;border:none;background:none;color:inherit}
+.user-menu:hover{background:rgba(255,255,255,.1)}
+.user-menu-info{text-align:right;line-height:1.3}
+.user-title{font-size:10px;color:rgba(255,255,255,.55);font-weight:500;letter-spacing:.03em;text-transform:none}
+.user-name-label{font-size:13px;color:#fff;font-weight:700;letter-spacing:.01em}
+.chevron{font-size:9px;color:rgba(255,255,255,.45);margin-left:1px;transition:transform .2s}
+.user-menu.open .chevron{transform:rotate(180deg)}
+.user-avatar{width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,.18);border:2px solid rgba(255,255,255,.3);display:flex;align-items:center;justify-content:center;overflow:hidden;font-size:13px;font-weight:700;color:#fff;flex-shrink:0}
+.user-avatar img{width:100%;height:100%;object-fit:cover}
+
+/* Dropdown panel */
+.user-dropdown{position:absolute;top:calc(100% + 10px);right:0;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow-lg);width:260px;z-index:500;overflow:hidden;animation:dropIn .18s ease}
+@keyframes dropIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
+.udrop-header{padding:16px;background:var(--brand-grad);display:flex;gap:12px;align-items:center}
+.udrop-avatar{width:46px;height:46px;border-radius:50%;background:rgba(255,255,255,.2);border:2px solid rgba(255,255,255,.35);display:flex;align-items:center;justify-content:center;overflow:hidden;font-size:16px;font-weight:700;color:#fff;flex-shrink:0}
+.udrop-avatar img{width:100%;height:100%;object-fit:cover}
+.udrop-info .udrop-title{font-size:10px;color:rgba(255,255,255,.55);font-weight:500}
+.udrop-info .udrop-name{font-size:13px;color:#fff;font-weight:700;margin-top:1px}
+.udrop-item{display:flex;align-items:center;gap:10px;padding:11px 16px;font-size:13px;color:var(--ink);cursor:pointer;border:none;background:none;width:100%;text-align:left;transition:background .12s;border-bottom:1px solid var(--bg)}
+.udrop-item:last-child{border-bottom:none}
+.udrop-item:hover{background:var(--bg)}
+.udrop-item.danger{color:var(--red)}
+.udrop-icon{font-size:16px;width:22px;text-align:center}
+
+/* Profile modal */
+.modal-overlay{position:fixed;inset:0;background:rgba(10,8,30,.55);z-index:400;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(2px)}
+.modal-box{background:var(--surface);border-radius:20px;width:100%;max-width:420px;box-shadow:var(--shadow-lg);overflow:hidden}
+.modal-head{background:var(--brand-grad);padding:20px 22px;display:flex;align-items:center;justify-content:space-between}
+.modal-head h3{color:#fff;font-size:16px;margin:0}
+.modal-close{background:rgba(255,255,255,.15);border:none;border-radius:50%;width:28px;height:28px;color:#fff;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.modal-close:hover{background:rgba(255,255,255,.25)}
+.modal-body{padding:22px}
+.modal-section{margin-bottom:22px}
+.modal-section-title{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-muted);margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+.photo-upload-area{display:flex;align-items:center;gap:16px}
+.photo-preview{width:72px;height:72px;border-radius:50%;background:var(--brand-grad);display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:700;color:#fff;flex-shrink:0;overflow:hidden;border:3px solid var(--line)}
+.photo-preview img{width:100%;height:100%;object-fit:cover}
+
+@media(max-width:680px){.sidebar{display:none}.main-scroll{padding:16px 14px}.form-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">
+    <div>
+      <div class="brand-name">PR<span style="color:#5b9bd5">I</span>ME <span style="color:rgba(255,255,255,.5);font-weight:500;font-size:13px">MX</span></div>
+      <div class="brand-sub">Visitas de Supervisión</div>
+    </div>
+  </div>
+  <div class="topbar-actions" id="topbarActions" style="display:none">
+    <input type="file" id="importFile" accept=".json" style="display:none" onchange="importBackup(event)"/>
+    <!-- User profile menu -->
+    <div style="position:relative">
+      <button class="user-menu" id="userMenuBtn" onclick="toggleUserMenu(event)">
+        <div class="user-menu-info">
+          <div class="user-title" id="userTitleLabel"></div>
+          <div class="user-name-label" id="userNameLabel"></div>
+        </div>
+        <span class="chevron" id="menuChevron">▼</span>
+        <div class="user-avatar" id="topbarAvatar"><span id="topbarInitial"></span></div>
+      </button>
+      <div class="user-dropdown hidden" id="userDropdown">
+        <div class="udrop-header">
+          <div class="udrop-avatar" id="dropAvatar"><span id="dropInitial"></span></div>
+          <div class="udrop-info">
+            <div class="udrop-title" id="dropTitle"></div>
+            <div class="udrop-name" id="dropName"></div>
+          </div>
+        </div>
+        <button class="udrop-item" onclick="openProfileModal();toggleUserMenu()"><span class="udrop-icon">🖼️</span> Foto de perfil</button>
+        <button class="udrop-item" onclick="openPassModal();toggleUserMenu()"><span class="udrop-icon">🔑</span> Cambiar contraseña</button>
+        <button class="udrop-item danger" onclick="logout()"><span class="udrop-icon">⏻</span> Cerrar sesión</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="login-screen" id="loginScreen">
+  <form class="login-card" onsubmit="doLogin(event)">
+    <div class="login-logo">
+      <div class="logotype">PR<span style="color:#2563eb">I</span>ME <span style="color:var(--ink-soft);font-weight:500;font-size:22px">MX</span></div>
+      <div class="brand-sub">Visitas de Supervisión · acceso interno</div>
+    </div>
+    <div class="field"><label>Usuario</label><input id="loginUser" type="text" autocomplete="username" required/></div>
+    <div class="field"><label>Contraseña</label><input id="loginPass" type="password" autocomplete="current-password" required/></div>
+    <div class="login-error" id="loginError">Usuario o contraseña incorrectos.</div>
+    <button type="submit" class="btn btn-primary">Iniciar sesión</button>
+    <p class="login-hint">Datos guardados localmente en este equipo</p>
+  </form>
+</div>
+
+<div class="home hidden" id="homeScreen">
+  <div class="home-head">
+    <h2>Mis visitas de supervisión</h2>
+  </div>
+  <p class="home-note" style="display:flex;align-items:center;gap:6px"><span style="color:var(--green);font-size:15px">●</span> Datos guardados localmente — nada se envía a internet.</p>
+  <div class="home-grid" id="homeGrid"></div>
+</div>
+
+<div class="dashboard hidden" id="dashboardScreen">
+  <div class="dash-head">
+    <h2>Tablero de Supervisión · Vista Maestro</h2>
+    <p style="font-size:13px;color:var(--ink-soft);margin-top:4px">Resumen de todas las visitas registradas por región</p>
+  </div>
+  <div class="dash-stats" id="dashStats"></div>
+  <div id="dashContent"></div>
+</div>
+
+<div class="wizard hidden" id="wizardScreen">
+  <aside class="sidebar">
+    <div class="sidebar-title">Secciones</div>
+    <div id="stepNav"></div>
+  </aside>
+  <div class="main">
+    <div class="main-scroll" id="mainScroll"></div>
+    <div class="footer-nav">
+      <div class="save-note"><span class="save-dot"></span> Guardado automáticamente</div>
+      <div class="nav-btns">
+        <button class="btn" id="btnPrev" onclick="goStep(state.step-1)">← Anterior</button>
+        <button class="btn btn-primary" id="btnNext" onclick="goStep(state.step+1)">Siguiente →</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- Profile modal -->
+<div class="modal-overlay hidden" id="profileModal" onclick="if(event.target===this)closeProfileModal()">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3>Foto de perfil</h3>
+      <button class="modal-close" onclick="closeProfileModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="photo-upload-area" style="margin-bottom:18px">
+        <div class="photo-preview" id="photoPreview"><span id="photoInitial"></span></div>
+        <div>
+          <p style="font-size:13px;color:var(--ink-soft);margin:0 0 10px">JPG o PNG, máx 2 MB</p>
+          <label class="btn btn-sm" style="cursor:pointer">
+            📁 Seleccionar imagen
+            <input type="file" accept="image/*" style="display:none" onchange="handlePhotoUpload(event)"/>
+          </label>
+          <button class="btn btn-sm" style="margin-top:6px;color:var(--red);border-color:var(--red-border)" onclick="removePhoto()">Quitar foto</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Password modal -->
+<div class="modal-overlay hidden" id="passModal" onclick="if(event.target===this)closePassModal()">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3>Cambiar contraseña</h3>
+      <button class="modal-close" onclick="closePassModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="field"><label>Contraseña actual</label><input type="password" id="passActual" placeholder="Contraseña actual"/></div>
+      <div class="field"><label>Nueva contraseña</label><input type="password" id="passNueva" placeholder="Mínimo 6 caracteres"/></div>
+      <div class="field"><label>Confirmar nueva contraseña</label><input type="password" id="passConfirm" placeholder="Repite la nueva contraseña"/></div>
+      <div id="passError" style="color:var(--red);font-size:13px;margin-bottom:10px;display:none"></div>
+      <button class="btn btn-primary" style="width:100%;justify-content:center" onclick="guardarNuevaPass()">Actualizar contraseña</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   USUARIOS
+   ============================================================ */
+const USERS = {
+  'victor.fn':         { pass:'2109248726f06188c6c953cfbae905c19cdc952aa34234a86b01379953cb9ae5', nombre:'VICTOR FREGOSO NUNEZ',                rol:'maestro'  },
+  'rafael.jimenez':    { pass:'5f94b835d65d53b80a1573808fb955e1b79e9e3da767392b50ffb53612104b7a', nombre:'RAFAEL JIMENEZ MACIAS',               rol:'regional' },
+  'yoshio.portillo':   { pass:'c99f368b3344d2eb0853f31f6cf12cadf2f5d09a2842c87710229604fe8e0fdb', nombre:'YOSHIO URIEL PORTILLO RODRIGUEZ',     rol:'regional' },
+  'miriam.lopez':      { pass:'a9874fa664de469893ae6f756ae3f0a5fb858d12f3eedc56a0809a901ba2014f', nombre:'MIRIAM ELIZABETH LOPEZ PEREZ',        rol:'regional' },
+  'jose.cardenas':     { pass:'b33fab679bc240cb7122acdb9e48770bddfb479afe0f3712965226bf8cce939a', nombre:'JOSE LUIS CARDENAS EUSEBIO',          rol:'regional' },
+  'gustavo.fabian':    { pass:'d803d8db0ab4df28a990f3597f2c706e118745310f66a6b87b4fdaf151e0e422', nombre:'GUSTAVO ALBERTO FABIAN HERNANDEZ',    rol:'regional' },
+  'ruben.reveles':     { pass:'c895c2aac1d96b246232bb52c4664de9c32cfbfc6ca2fd9d3fb2271a84154574', nombre:'RUBEN FRANCISCO REVELES HERRERA',     rol:'regional' },
+  'leonardo.crespo':   { pass:'703a1d22b861b5727248f4b2b8106ef615c440565fb9d58197c4c37a8974c8ba', nombre:'LEONARDO DANIEL CRESPO MORENO',       rol:'regional' },
+  'juan.barajas':      { pass:'e03e50cf0f7490e88d279ce1a987b02224baf8e7ce764e36734ebca5c4eba7be', nombre:'JUAN MANUEL BARAJAS JIMENEZ',         rol:'regional' },
+  'gilberto.calderon': { pass:'cbad2cc8fec283265ca40a984a26ef962d99baa44d2bc87ea5e365db1757adf4', nombre:'GILBERTO GUADALUPE CALDERON HERNANDEZ', rol:'regional' },
+  'david.garcia':      { pass:'5267ab4bba30ebe786c7b430dbcc74661b32d9869d1f3dca18ff875117ec8f7d', nombre:'DAVID DE JESUS GARCIA CERDE',         rol:'regional' }
+};
+
+/* ============================================================
+   TIENDAS POR REGIONAL
+   ============================================================ */
+const TIENDAS = {
+  'rafael.jimenez': [
+    'PRM TDA PLAZA INDEPENDENCIA JAL','PRM TDA NICOLAS COPERNICO JAL','PRM TDA FRANCISCO I MADERO TONALA',
+    'PRM TDA AMECA','PRM TDA UBIKA INDEPENDENCIA JAL','PRM TDA CHAPULTEPEC SUR',
+    'PRM TDA GUADALAJARA CHAPULTEPEC II','PRM TDA PROVIDENCIA GDL','PRM TDA PLAZA LA REINA',
+    'PRM TDA TEPATITLAN CENTRO','PRM TDA SANTA TERE','PRM TDA GUADALAJARA FAHO PABLO CASALS',
+    'PRM TDA GLORIETA JARDINES DEL BOSQUE','PRM TDA GUADALAJARA MEDRANO','PRM TDA GUADALAJARA CENTRO'
+  ],
+  'yoshio.portillo': [
+    'PRM TDA GUASAVE','PRM TDA CENTRO LOS MOCHIS I','PRM TDA LOS MOCHIS PLAZA PASEO',
+    'PRM TDA LOS MOCHIS','PRM TDA LOS MOCHIS PLAZA PANAMA','PRM TDA LOS MOCHIS PLAZA SENDERO',
+    'PRM TDA PLAZA NIO GUASAVE','PRM TDA PLAZA SORIANA LOS MOCHIS','PRM TDA AV OBREGON GUASAVE',
+    'PRM TDA LOS MOCHIS PLAZA DECO','PRM TDA PLAZA FIESTA LAS PALMAS'
+  ],
+  'miriam.lopez': [
+    'PRM TDA UBIKA MARIANO OTERO ZAPOPAN','PRM TDA CHEDRAHUI TLAJOMULCO JAL',
+    'PRM TDA PLAZA TESISTAN II','PRM TDA GUADALAJARA PLAZA BELENES','PRM TDA PLAZA UBIKA PACIFICO',
+    'PRM TDA GUADALAJARA CIRCUNVALACION','PRM TDA LA CIMA GLA','PRM TDA GUADALAJARA COUNTRY',
+    'PRM TDA GRAN PATIO PATRIA','PRM TDA PLAZA TESISTAN','PRM TDA GUADALAJARA LA GRAN PLAZA GUAD',
+    'PRM TDA HIPER CORDILLERAS JALISCO','PRM TDA PLAZA URBAN VILLAGE JAL','PRM TDA GLORIETA CHAPALITA'
+  ],
+  'jose.cardenas': [
+    'PRM TDA URUAPAN','PRM TDA URUAPAN URUAPAN','PRM TDA HOTEL SARA ZAPOTLANEJO',
+    'PRM ARANDAS JALISCO','PRM TDA LA BARCA','PRM TDA ZAMORA CENTRO',
+    'PRM TDA LA PIEDAD HERIBERTO JARA','PRM TDA PASEO AKIA MICHOACAN',
+    'PRM TDA GALERIAS METROPOLITAN LA PIEDAD','PRM TDA URUAPAN CENTRO','PRM TDA PLAZA SENTURA'
+  ],
+  'gustavo.fabian': [
+    'PRM TDA TECOMAN COLIMA 18 DE JULIO','PRM TDA MANZANILLO CENTRO','PRM TDA ZENTRALIA COLIMA',
+    'PRM TDA MANZANILLO MIGUEL DE LA MADRID','PRM TDA CD GUZMAN JALISCO','PRM TDA COLIMA AV MADERO',
+    'PRM TDA TECNOLOGICO COLIMA','PRM TDA PLAZA CENTRO SUR TLAQUEPAQUE','PRM TDA AJIJIC',
+    'PRM TDA URBAN CENTER GUADALAJARA','PRM TDA SORIANA VILLA ALVAREZ',
+    'PRM TDA PLAZA SAN FERNANDO','PRM TDA COLIMA FILOMENO MEDINA'
+  ],
+  'ruben.reveles': [
+    'PRM TDA PTO VALLARTA CENTRO JAL','PRM TDA PTO VALLARTA DORADO',
+    'PRM TDA FRANCISCO MEDINA PTO VALLARTA','PRM TDA PAROTA CENTER','PRM TDA TEPIC PLAZA FORUM',
+    'PRM TDA MEGA BUCERIAS NAYARIT','PRM TDA MACRO PLAZA VALLARTA','PRM TDA TEPIC CENTRO',
+    'PRM TDA PLAZA LA CANTERA TEPIC'
+  ],
+  'leonardo.crespo': [
+    'PRM TDA MAZATLAN','PRM TDA PLAZA ACAYA','PRM TDA MAZATLAN BICENTENARIO SIN',
+    'PRM TDA MAZATLAN GRAN PLAZA','PRM TDA PATIO COLOSIO MAZATLAN','PRM TDA MAZATLAN CENTRO 2',
+    'PRM TDA MAZATLAN GALERIAS','PRM PLAZA SANTA ROSA MAZATLAN','PRM TDA EJERCITO MEXICANO'
+  ],
+  'juan.barajas': [
+    'PRM TDA LAS AMERICAS MORELIA','PRM TDA MACROPLAZA MORELIA','PRM TDA MADERO CENTRO',
+    'PRM TDA PASEO ALTOZANO','PRM TDA MORELIAMI PLAZA','PRM TDA PLAZA PUNTO PONIENTE MCH',
+    'PRM TDA PRADOS CAMELINAS','PRM TDA MORELIA PLAZA ANDADOR','PRM TDA GARCIA DE LEON MORELIA',
+    'PRM TDA MORELIA RIO'
+  ],
+  'gilberto.calderon': [
+    'PRM TDA 4 RIOS CULIACAN','PRM TDA CULIACAN','PRM TDA FORUM CULIACAN',
+    'PRM TDA SORIANA ABASTOS CULIACAN','PRM TDA PLAZA PABELLON CULIACAN','PRM TDA CULIACAN CENTRO',
+    'PRM TDA CULIACAN PLAZA VERONA','PRM TDA PLAZA LA LOMITA'
+  ],
+  'david.garcia': [
+    'PRM TDA ANTONIO ROSALES GUAMUCHIL','PRM TDA SENDERO CULIACAN','PRM TDA MI PLAZA BARRANCOS',
+    'PRM TDA PLAZA MIVIA LOLA CULIACAN','PRM TDA EXPLANADA CULIACAN',
+    'PRM TDA CULIACAN PASEO SAN ISIDRO','PRM TDA PLAZA HUMAYA'
+  ]
+};
+
+/* ============================================================
+   PASOS
+   ============================================================ */
+const PASOS = [
+  { key:'general',       label:'Información de Visita' },
+  { key:'arqueo',        label:'Arqueo de Caja',      parent:'Tesorería' },
+  { key:'depositos',     label:'Depósitos',            parent:'Tesorería' },
+  { key:'cancelaciones', label:'Cancelaciones',        parent:'Tesorería' },
+  { key:'conciliacion',  label:'Inv. Serializados',   parent:'Inventarios' },
+  { key:'acc',           label:'Inv. Accesorios',     parent:'Inventarios' },
+  { key:'diferencias',   label:'Diferencias',         parent:'Inventarios' },
+  { key:'cantados',      label:'Revisión de Líneas',  parent:'Calidad de la Venta' },
+  { key:'resumen',       label:'Resumen de Visita' }
+];
+
+/* ============================================================
+   ESTADO GLOBAL
+   ============================================================ */
+const STORAGE_KEY = 'prime_supervisiones_v1';
+const AUTH_KEY    = 'prime_supervision_auth';
+let state = { visita:null, step:0, usuario:null };
+
+/* ============================================================
+   MODELO DE DATOS
+   ============================================================ */
+function getSemana() {
+  const now=new Date(), d=new Date(Date.UTC(now.getFullYear(),now.getMonth(),now.getDate()));
+  d.setUTCDate(d.getUTCDate()+4-(d.getUTCDay()||7));
+  const ys=new Date(Date.UTC(d.getUTCFullYear(),0,1)), wk=Math.ceil((((d-ys)/86400000)+1)/7);
+  const ini=new Date(now); ini.setDate(now.getDate()-now.getDay()+1);
+  const fin=new Date(ini); fin.setDate(ini.getDate()+6);
+  const f=d=>`${d.getDate()} ${['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'][d.getMonth()]}`;
+  return `Semana ${wk} (${f(ini)}–${f(fin)})`;
+}
+function hoy() { return new Date().toISOString().slice(0,10); }
+
+function nuevaVisita() {
+  return {
+    id: Date.now().toString(),
+    creadoPor: state.usuario,
+    nombreRegional: USERS[state.usuario]?.nombre || state.usuario,
+    creado: new Date().toISOString(),
+    actualizado: new Date().toISOString(),
+    general: {
+      tienda: '',
+      fecha: hoy(),
+      gerenteTienda: '',
+      gerenteRegional: USERS[state.usuario]?.nombre || ''
+    },
+    arqueo: {
+      billetes: { 1000:'',500:'',200:'',100:'',50:'',20:'' },
+      monedas:  { 100:'',20:'',10:'',5:'',2:'',1:'' },
+      vouchers: '',          // Voucher's TDC y TDB
+      ingresosReporte: ''
+    },
+    depositos: { fechaInicio:'', fechaFin:'', recoleccionValores:'', filas:[] },
+    cancelaciones: { registros:[] },
+    conciliacion: { oracleItems:[], escaneados:[] },
+    acc: { items:[] },
+    diferencias: { notas:'' },
+    cantados: { semana:getSemana(), registros:[] },
+    _lastStep: 0
+  };
+}
+
+/* ============================================================
+   PERSISTENCIA
+   ============================================================ */
+function cargarTodasLasVisitas() { try{return JSON.parse(localStorage.getItem(STORAGE_KEY)||'[]');}catch{return[];} }
+function cargarVisitas() {
+  const todas=cargarTodasLasVisitas();
+  if(USERS[state.usuario]?.rol==='maestro') return todas;
+  return todas.filter(v=>v.creadoPor===state.usuario);
+}
+function guardarVisitas(visitas) {
+  if(USERS[state.usuario]?.rol==='maestro'){localStorage.setItem(STORAGE_KEY,JSON.stringify(visitas));return;}
+  const otras=cargarTodasLasVisitas().filter(v=>v.creadoPor!==state.usuario);
+  localStorage.setItem(STORAGE_KEY,JSON.stringify([...otras,...visitas]));
+}
+function guardarVisitaActual() {
+  const visitas=cargarVisitas(), idx=visitas.findIndex(v=>v.id===state.visita.id);
+  state.visita.actualizado=new Date().toISOString();
+  if(idx>=0)visitas[idx]=state.visita;else visitas.push(state.visita);
+  guardarVisitas(visitas);
+}
+
+/* ============================================================
+   AUTH
+   ============================================================ */
+async function sha256(str){
+  const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+async function doLogin(e) {
+  e.preventDefault();
+  const user=document.getElementById('loginUser').value.trim().toLowerCase();
+  const pass=document.getElementById('loginPass').value;
+  const err=document.getElementById('loginError');
+  if(!USERS[user]){err.classList.add('visible');return;}
+  // Si el perfil tiene contraseña personalizada (guardada como hash), usarla; si no, usar hash por defecto
+  const hashEsperado=(cargarPerfiles()[user]?.pass)||USERS[user]?.pass;
+  const hashIngresado=await sha256(pass);
+  if(hashIngresado===hashEsperado){
+    state.usuario=user; localStorage.setItem(AUTH_KEY,user);
+    err.classList.remove('visible'); afterLogin();
+  } else err.classList.add('visible');
+}
+function logout() {
+  localStorage.removeItem(AUTH_KEY); state.usuario=null; state.visita=null;
+  const dd=document.getElementById('userDropdown'); if(dd) dd.classList.add('hidden');
+  hideAll(); document.getElementById('loginScreen').classList.remove('hidden');
+  document.getElementById('topbarActions').style.display='none';
+}
+function checkAuth() {
+  const saved=localStorage.getItem(AUTH_KEY);
+  if(saved&&USERS[saved]){state.usuario=saved;afterLogin();}
+  else document.getElementById('loginScreen').classList.remove('hidden');
+}
+function hideAll() {
+  ['loginScreen','homeScreen','dashboardScreen','wizardScreen'].forEach(id=>document.getElementById(id).classList.add('hidden'));
+}
+
+/* ============================================================
+   HOME REGIONAL
+   ============================================================ */
+function showHome() { hideAll(); document.getElementById('homeScreen').classList.remove('hidden'); renderHome(); }
+function renderHome() {
+  const visitas=cargarVisitas(), grid=document.getElementById('homeGrid');
+  let html=`<button class="new-card" onclick="crearVisita()"><span class="plus">+</span>Nueva visita</button>`;
+  visitas.slice().reverse().forEach(v=>{
+    const pct=calcPct(v);
+    const fecha=v.general.fecha?new Date(v.general.fecha+'T12:00:00').toLocaleDateString('es-MX',{day:'2-digit',month:'2-digit',year:'numeric'}):'—';
+    html+=`<div class="visita-card" onclick="abrirVisita('${v.id}')">
+      <div class="card-actions">
+        <button class="icon-btn" title="Duplicar" onclick="event.stopPropagation();duplicarVisita('${v.id}')">⧉</button>
+        <button class="icon-btn" title="Eliminar" onclick="event.stopPropagation();eliminarVisita('${v.id}')">✕</button>
+      </div>
+      <div class="store">${v.general.tienda||'Tienda sin nombre'}</div>
+      <div class="meta">${fecha} · ${v.general.gerenteTienda||'Sin gerente'}</div>
+      <div class="progress-row">
+        <div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div>
+        <div class="progress-pct">${pct}%</div>
+      </div></div>`;
+  });
+  grid.innerHTML=html;
+}
+function calcPct(v) {
+  let done=0,total=5;
+  if(v.general.tienda)done++;
+  const t=calcArqueoTotal(v.arqueo); if(t.efectivo>0||t.vouchers>0)done++;
+  if((v.conciliacion.escaneados||[]).length>0)done++;
+  if((v.acc.items||[]).length>0)done++;
+  if((v.cantados.registros||[]).length>0)done++;
+  return Math.round((done/total)*100);
+}
+function crearVisita(){const v=nuevaVisita();const vs=cargarVisitas();vs.push(v);guardarVisitas(vs);abrirVisita(v.id);}
+function duplicarVisita(id){const vs=cargarVisitas();const o=vs.find(v=>v.id===id);if(!o)return;const c=JSON.parse(JSON.stringify(o));c.id=Date.now().toString();c.creado=new Date().toISOString();c.actualizado=new Date().toISOString();vs.push(c);guardarVisitas(vs);renderHome();toast('Visita duplicada');}
+function eliminarVisita(id){if(!confirm('¿Eliminar esta visita? No se puede deshacer.'))return;guardarVisitas(cargarVisitas().filter(v=>v.id!==id));renderHome();}
+function abrirVisita(id){state.visita=cargarVisitas().find(v=>v.id===id);if(!state.visita)return;state.step=state.visita._lastStep||0;hideAll();document.getElementById('wizardScreen').classList.remove('hidden');renderWizard();}
+
+/* ============================================================
+   DASHBOARD MAESTRO
+   ============================================================ */
+function eliminarVisitaMaestro(id){
+  if(!confirm('¿Eliminar esta visita? No se puede deshacer.'))return;
+  const todas=cargarTodasLasVisitas().filter(v=>v.id!==id);
+  localStorage.setItem(STORAGE_KEY,JSON.stringify(todas));
+  renderDashboard();toast('Visita eliminada');
+}
+function showDashboard(){hideAll();document.getElementById('dashboardScreen').classList.remove('hidden');renderDashboard();}
+function renderDashboard(){
+  // Solo contar visitas de usuarios regionales conocidos (ignora registros huérfanos de versiones anteriores)
+  const usuariosConocidos=new Set(Object.keys(USERS));
+  const todas=cargarTodasLasVisitas().filter(v=>usuariosConocidos.has(v.creadoPor));
+  const totalVisitas=todas.length;
+  const totalTiendas=new Set(todas.map(v=>v.general.tienda).filter(Boolean)).size;
+  const totalRegionales=new Set(todas.map(v=>v.creadoPor).filter(Boolean)).size;
+  const conBandera=todas.filter(v=>(v.cantados.registros||[]).some(r=>r.consumos==='NO'||r.dobleCotejo==='NO'||r.referenciasReales==='NO')).length;
+  document.getElementById('dashStats').innerHTML=`
+    <div class="stat-box"><div class="val">${totalVisitas}</div><div class="lbl">Total visitas</div></div>
+    <div class="stat-box"><div class="val">${totalTiendas}</div><div class="lbl">Tiendas visitadas</div></div>
+    <div class="stat-box"><div class="val">${totalRegionales}</div><div class="lbl">Regionales activos</div></div>
+    <div class="stat-box"><div class="val" style="color:var(--red)">${conBandera}</div><div class="lbl">Visitas con bandera</div></div>`;
+  const grupos={};
+  Object.entries(USERS).forEach(([k,u])=>{if(u.rol==='regional')grupos[k]=[];});
+  todas.forEach(v=>{if(v.creadoPor&&grupos[v.creadoPor]!==undefined)grupos[v.creadoPor].push(v);});
+  let html='';
+  Object.entries(grupos).forEach(([key,visitas])=>{
+    const nombre=USERS[key]?.nombre||key;
+    html+=`<div class="regional-section">
+      <div class="regional-header"><span>${nombre}</span><span class="cnt">${visitas.length} visita${visitas.length!==1?'s':''}</span></div>`;
+    if(!visitas.length){html+=`<div style="font-size:13px;color:var(--ink-soft);padding:10px 12px;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius)">Sin visitas registradas</div>`;}
+    else{
+      html+=`<div style="overflow-x:auto"><table class="dash-table"><thead><tr>
+        <th>Tienda</th><th>Fecha</th><th>Gerente</th><th>Sobrante/Faltante</th><th>IMEI faltantes</th><th>Acc. faltantes</th><th>Cantados c/bandera</th><th>Avance</th><th></th>
+        </tr></thead><tbody>`;
+      visitas.slice().reverse().forEach(v=>{
+        const t=calcArqueoTotal(v.arqueo), ing=parseFloat(v.arqueo.ingresosReporte)||0, dif=t.total-ing;
+        const oI=v.conciliacion.oracleItems.map(i=>i.imei);
+        const fI=oI.filter(i=>!v.conciliacion.escaneados.includes(i)).length;
+        const fA=v.acc.items.filter(it=>{const o=parseFloat(it.oracle),c=parseFloat(it.contado);return !isNaN(o)&&!isNaN(c)&&c<o;}).length;
+        const bnd=(v.cantados.registros||[]).filter(r=>r.consumos==='NO'||r.dobleCotejo==='NO'||r.referenciasReales==='NO').length;
+        const pct=calcPct(v);
+        const fecha=v.general.fecha?new Date(v.general.fecha+'T12:00:00').toLocaleDateString('es-MX',{day:'2-digit',month:'2-digit',year:'numeric'}):'—';
+        html+=`<tr>
+          <td><strong>${v.general.tienda||'Sin nombre'}</strong></td><td>${fecha}</td><td>${v.general.gerenteTienda||'—'}</td>
+          <td style="color:${dif===0?'var(--green)':dif>0?'var(--amber)':'var(--red)'};font-weight:700">${fmt(dif)}</td>
+          <td style="color:${fI>0?'var(--red)':'var(--green)'};font-weight:700">${fI}</td>
+          <td style="color:${fA>0?'var(--red)':'var(--green)'};font-weight:700">${fA}</td>
+          <td style="color:${bnd>0?'var(--red)':'var(--green)'};font-weight:700">${bnd}</td>
+          <td><div style="display:flex;align-items:center;gap:6px">
+            <div style="flex:1;height:5px;background:var(--bg);border-radius:99px;overflow:hidden;min-width:60px">
+              <div style="width:${pct}%;height:100%;background:var(--orange);border-radius:99px"></div></div>
+            <span style="font-size:11px;font-weight:700;color:var(--ink-soft)">${pct}%</span></div></td>
+          <td><button class="icon-btn" title="Eliminar visita" onclick="eliminarVisitaMaestro('${v.id}')" style="color:var(--red);font-size:16px;opacity:.6" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=.6">✕</button></td>
+          </tr>`;
+      });
+      html+=`</tbody></table></div>`;
+    }
+    html+=`</div>`;
+  });
+  document.getElementById('dashContent').innerHTML=html;
+}
+
+/* ============================================================
+   WIZARD
+   ============================================================ */
+function renderWizard(){renderStepNav();renderStep();}
+function renderStepNav(){
+  let html='', lastParent=null;
+  PASOS.forEach((p,i)=>{
+    const cls=i===state.step?'active':i<state.step?'done':'';
+    // Insert parent group header before first child
+    if(p.parent && p.parent!==lastParent){
+      // check if any sibling of this group is active or done
+      const groupActive=PASOS.some((pp,ii)=>pp.parent===p.parent&&(ii===state.step||ii<state.step));
+      html+=`<div class="step-group-label" style="font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.35);padding:8px 10px 3px;margin-top:4px">📦 ${p.parent}</div>`;
+      lastParent=p.parent;
+    }
+    if(!p.parent) lastParent=null;
+    const indent=p.parent?'padding-left:20px;':'';
+    html+=`<button class="step-item ${cls}" onclick="goStep(${i})" style="${indent}"><span class="step-num">${i+1}</span><span class="label-text">${p.label}</span></button>`;
+  });
+  document.getElementById('stepNav').innerHTML=html;
+  document.getElementById('btnPrev').style.visibility=state.step===0?'hidden':'visible';
+  const isLast=state.step===PASOS.length-1, btn=document.getElementById('btnNext');
+  if(isLast){btn.textContent='Volver al inicio';btn.onclick=()=>USERS[state.usuario]?.rol==='maestro'?showDashboard():showHome();}
+  else{btn.textContent='Siguiente →';btn.onclick=()=>goStep(state.step+1);}
+}
+function goStep(n){
+  if(n<0||n>PASOS.length-1)return;
+  state.step=n;state.visita._lastStep=n;guardarVisitaActual();
+  renderWizard();document.getElementById('mainScroll').scrollTop=0;
+}
+function renderStep(){
+  const key=PASOS[state.step].key;
+  const fn={
+    general:renderGeneral, arqueo:renderArqueo,
+    depositos:renderDepositos, cancelaciones:renderCancelaciones,
+    conciliacion:renderConciliacion, acc:renderAcc, diferencias:renderDiferencias,
+    cantados:renderCantados, resumen:renderResumen
+  };
+  document.getElementById('mainScroll').innerHTML=(fn[key]||renderPendiente)();
+  if(key==='arqueo')recalcArqueo();
+  if(key==='conciliacion')recalcConciliacion();
+  if(key==='acc')recalcAcc();
+  if(key==='depositos')recalcDepositos();
+}
+
+/* ---- STEP 1: DATOS GENERALES ---- */
+function renderGeneral() {
+  const g=state.visita.general;
+  const tiendas=TIENDAS[state.usuario]||[];
+  const opcionesTiendas=tiendas.map(t=>`<option value="${x(t)}" ${g.tienda===t?'selected':''}>${x(t)}</option>`).join('');
+  return `<div class="step-header"><h2>Información de Visita</h2>
+    <p>Esta información aparece en el encabezado del documento final.</p></div>
+  <div class="card"><div class="card-title">IDENTIFICACIÓN</div>
+    <div class="form-grid">
+      <div class="field-inline">
+        <label>Tienda</label>
+        <select onchange="state.visita.general.tienda=this.value;autoSave()">
+          <option value="">— Selecciona una tienda —</option>
+          ${opcionesTiendas}
+        </select>
+      </div>
+      <div class="field-inline">
+        <label>Fecha de la visita</label>
+        <input type="date" value="${g.fecha||hoy()}" readonly style="background:var(--paper);color:var(--ink-soft);cursor:default"/>
+      </div>
+      <div class="field-inline">
+        <label>Gerente de Tienda</label>
+        <input value="${x(g.gerenteTienda)}" oninput="state.visita.general.gerenteTienda=this.value;autoSave()"/>
+      </div>
+      <div class="field-inline">
+        <label>Gerente Regional</label>
+        <input value="${x(g.gerenteRegional)}" readonly/>
+      </div>
+    </div>
+  </div>
+  <div class="info-box">Todo se guarda automáticamente en este equipo — nada se envía a internet.</div>`;
+}
+
+/* ---- STEP 2: ARQUEO DE CAJA ---- */
+/* Orden: 1) Resultado, 2) Billetes, 3) Monedas */
+function renderArqueo() {
+  const a=state.visita.arqueo;
+  const bRows=[[1000,'$1,000'],[500,'$500'],[200,'$200'],[100,'$100'],[50,'$50'],[20,'$20']];
+  const mRows=[[100,'$100'],[20,'$20'],[10,'$10'],[5,'$5'],[2,'$2'],[1,'$1']];
+  const bRow=([d,l])=>`<tr><td>${l}</td>
+    <td><input type="number" min="0" step="1" value="${a.billetes[d]||''}" oninput="state.visita.arqueo.billetes['${d}']=this.value;recalcArqueo();autoSave()"/></td>
+    <td id="arq_b_${d}">$0.00</td></tr>`;
+  const mRow=([d,l])=>`<tr><td>${l}</td>
+    <td><input type="number" min="0" step="1" value="${a.monedas[d]||''}" oninput="state.visita.arqueo.monedas['${d}']=this.value;recalcArqueo();autoSave()"/></td>
+    <td id="arq_m_${d}">$0.00</td></tr>`;
+
+  return `<div class="step-header"><h2>Tesorería</h2>
+    <p>Captura el efectivo y vouchers contados físicamente en la visita.</p></div>
+
+  <!-- 1. RESULTADO DEL ARQUEO -->
+  <div class="card">
+    <div class="card-title">RESULTADO DEL ARQUEO</div>
+    <div class="result-grid">
+      <div class="result-box"><div class="val" id="arq_ef">$0.00</div><div class="lbl">TOTAL EFECTIVO</div></div>
+      <div class="result-box"><div class="val" id="arq_vou">$0.00</div><div class="lbl">TOTAL VOUCHER'S TDC y TDB</div></div>
+      <div class="result-box"><div class="val" id="arq_tot">$0.00</div><div class="lbl">EFECTIVO + VOUCHER'S TDC y TDB</div></div>
+      <div class="result-box" id="arq_dif_box"><div class="val" id="arq_dif">$0.00</div><div class="lbl">SOBRANTE / FALTANTE</div></div>
+    </div>
+    <div class="form-grid" style="margin-top:16px">
+      <div class="field-inline">
+        <label>Ingresos del día según reporte</label>
+        <input type="number" step="0.01" placeholder="0.00" value="${a.ingresosReporte||''}" oninput="state.visita.arqueo.ingresosReporte=this.value;recalcArqueo();autoSave()"/>
+      </div>
+      <div class="field-inline">
+        <label>Voucher's TDC y TDB</label>
+        <input type="number" step="0.01" placeholder="0.00" value="${a.vouchers||''}" oninput="state.visita.arqueo.vouchers=this.value;recalcArqueo();autoSave()"/>
+      </div>
+      <div class="field-inline" style="grid-column:1/-1">
+        <label>Explicación de la diferencia (si aplica)</label>
+        <input value="${x(a.explicacionDiferencia||'')}" oninput="state.visita.arqueo.explicacionDiferencia=this.value;autoSave()"/>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. EFECTIVO · BILLETES -->
+  <div class="card">
+    <div class="card-title">EFECTIVO · BILLETES</div>
+    <table class="arq-table">
+      <thead><tr><th>DENOMINACIÓN</th><th>CANTIDAD</th><th>IMPORTE</th></tr></thead>
+      <tbody>${bRows.map(bRow).join('')}</tbody>
+      <tfoot><tr class="arq-total-row"><td colspan="2">TOTAL BILLETES</td><td id="arq_tot_b">$0.00</td></tr></tfoot>
+    </table>
+  </div>
+
+  <!-- 3. EFECTIVO · MONEDAS -->
+  <div class="card">
+    <div class="card-title">EFECTIVO · MONEDAS</div>
+    <table class="arq-table">
+      <thead><tr><th>DENOMINACIÓN</th><th>CANTIDAD</th><th>IMPORTE</th></tr></thead>
+      <tbody>${mRows.map(mRow).join('')}</tbody>
+      <tfoot><tr class="arq-total-row"><td colspan="2">TOTAL MONEDAS</td><td id="arq_tot_m">$0.00</td></tr></tfoot>
+    </table>
+  </div>`;
+}
+
+function calcArqueoTotal(arqueo) {
+  let ef=0;
+  [1000,500,200,100,50,20].forEach(d=>ef+=(parseFloat(arqueo.billetes[d])||0)*d);
+  [100,20,10,5,2,1].forEach(d=>ef+=(parseFloat(arqueo.monedas[d])||0)*d);
+  const vouchers=parseFloat(arqueo.vouchers)||0;
+  return {efectivo:ef, vouchers, total:ef+vouchers};
+}
+
+function recalcArqueo() {
+  const a=state.visita.arqueo;
+  let totB=0,totM=0;
+  [1000,500,200,100,50,20].forEach(d=>{const imp=(parseFloat(a.billetes[d])||0)*d;totB+=imp;setText(`arq_b_${d}`,fmt(imp));});
+  [100,20,10,5,2,1].forEach(d=>{const imp=(parseFloat(a.monedas[d])||0)*d;totM+=imp;setText(`arq_m_${d}`,fmt(imp));});
+  const ef=totB+totM, vou=parseFloat(a.vouchers)||0, tot=ef+vou;
+  const ing=parseFloat(a.ingresosReporte)||0, dif=tot-ing;
+  setText('arq_tot_b',fmt(totB));setText('arq_tot_m',fmt(totM));
+  setText('arq_ef',fmt(ef));setText('arq_vou',fmt(vou));setText('arq_tot',fmt(tot));setText('arq_dif',fmt(dif));
+  const box=document.getElementById('arq_dif_box');
+  if(box)box.className='result-box '+(dif===0?'green':dif>0?'amber':'red');
+}
+
+/* ---- STEP: DEPÓSITOS ---- */
+function getDiaSemana(fechaStr){
+  if(!fechaStr)return'';
+  const dias=['DOMINGO','LUNES','MARTES','MIÉRCOLES','JUEVES','VIERNES','SÁBADO'];
+  return dias[new Date(fechaStr+'T12:00:00').getDay()];
+}
+
+function generarFilasRango(inicio,fin){
+  const d=state.visita.depositos;
+  const previas={};
+  (d.filas||[]).forEach(f=>{if(f.fecha)previas[f.fecha]=f;});
+  const filas=[];
+  const cur=new Date(inicio+'T12:00:00');
+  const end=new Date(fin+'T12:00:00');
+  while(cur<=end){
+    const iso=cur.toISOString().slice(0,10);
+    filas.push(previas[iso]||{fecha:iso,dia:getDiaSemana(iso),efectivoIngreso:'',efectivoDeposito:'',papeleta:'',comentario:'',antesDeUna:'',frecuenciaEstablecida:'',tieneJustificacion:'',justificacionComentario:'',diasDesfase:'',recolectadoATiempo:'',notificadoTesoreria:''});
+    cur.setDate(cur.getDate()+1);
+  }
+  return filas;
+}
+
+function aplicarRangoDepositos(){
+  const ini=document.getElementById('depIni')?.value;
+  const fin=document.getElementById('depFin')?.value;
+  if(!ini||!fin){toast('Selecciona fecha inicio y fecha fin');return;}
+  if(ini>fin){toast('La fecha de inicio debe ser anterior al fin');return;}
+  const dias=(new Date(fin+'T12:00:00')-new Date(ini+'T12:00:00'))/(86400000)+1;
+  if(dias>60){toast('El rango no puede superar 60 días');return;}
+  state.visita.depositos.fechaInicio=ini;
+  state.visita.depositos.fechaFin=fin;
+  state.visita.depositos.filas=generarFilasRango(ini,fin);
+  autoSave();renderStep();
+  toast(`${dias} día${dias!==1?'s':''} cargado${dias!==1?'s':''}`);
+}
+
+function reiniciarDepositos(){
+  if(!confirm('¿Reiniciar la tabla de Depósitos? Se perderán todos los datos capturados.'))return;
+  state.visita.depositos={fechaInicio:'',fechaFin:'',recoleccionValores:'',filas:[]};
+  autoSave();renderStep();toast('Tabla reiniciada');
+}
+
+function setRecoleccion(val){
+  state.visita.depositos.recoleccionValores=val;
+  autoSave();renderStep();
+}
+
+function setDepAntesDeUna(i,val){
+  state.visita.depositos.filas[i].antesDeUna=val;
+  autoSave();renderStep();
+}
+function setDepFrecuencia(i,val){
+  state.visita.depositos.filas[i].frecuenciaEstablecida=val;
+  if(val==='SI'){
+    state.visita.depositos.filas[i].tieneJustificacion='';
+    state.visita.depositos.filas[i].justificacionComentario='';
+    state.visita.depositos.filas[i].diasDesfase='';
+  }
+  autoSave();renderStep();
+}
+function setDepJustificacion(i,val){
+  state.visita.depositos.filas[i].tieneJustificacion=val;
+  if(val==='SI') state.visita.depositos.filas[i].diasDesfase='';
+  if(val==='NO') state.visita.depositos.filas[i].justificacionComentario='';
+  autoSave();renderStep();
+}
+function setDepRecolectadoATiempo(i,val){
+  state.visita.depositos.filas[i].recolectadoATiempo=val;
+  if(val==='SI') state.visita.depositos.filas[i].notificadoTesoreria='';
+  autoSave();renderStep();
+}
+function setDepNotificadoTesoreria(i,val){
+  state.visita.depositos.filas[i].notificadoTesoreria=val;
+  autoSave();renderStep();
+}
+
+function renderDepositos(){
+  if(!state.visita.depositos) state.visita.depositos={fechaInicio:'',fechaFin:'',recoleccionValores:'',filas:[]};
+  const dep=state.visita.depositos;
+  if(dep.recoleccionValores===undefined) dep.recoleccionValores='';
+  const filas=dep.filas||[];
+  const rv=dep.recoleccionValores; // '' | 'SI' | 'NO'
+  const esRecoleccion=rv==='NO';
+  const tdS='border-right:2px solid var(--line-2)';
+
+  // Botón SI/NO reutilizable
+  const btnSiNo=(fn,campo,val,current)=>{
+    const sel=current===val;
+    const color=val==='SI'?'var(--green)':'var(--red)';
+    return `<button onclick="${fn}('${val}')"
+      style="padding:5px 14px;border:1.5px solid ${color};border-radius:6px;
+             background:${sel?color:'transparent'};color:${sel?'#fff':color};
+             font-size:12px;font-weight:700;cursor:pointer;transition:all .15s">${val}</button>`;
+  };
+
+  // Botón SI/NO para celda de fila — re-renderiza al cambiar campos con cascada
+  const mkBtnFila=(i,campo,val)=>{
+    const cur=filas[i]?.[campo]||'';
+    const sel=cur===val;
+    const color=val==='SI'?'var(--green)':'var(--red)';
+    const fn=campo==='frecuenciaEstablecida'?`setDepFrecuencia(${i},'${val}')`:
+             campo==='tieneJustificacion'?`setDepJustificacion(${i},'${val}')`:
+             campo==='antesDeUna'?`setDepAntesDeUna(${i},'${val}')`:
+             campo==='recolectadoATiempo'?`setDepRecolectadoATiempo(${i},'${val}')`:
+             campo==='notificadoTesoreria'?`setDepNotificadoTesoreria(${i},'${val}')`:
+             `state.visita.depositos.filas[${i}].${campo}='${val}';autoSave();this.closest('td').querySelectorAll('button').forEach(b=>{const me=b.textContent==='${val}';b.style.background=me?'${color}':'transparent';b.style.color=me?'#fff':'${color}'})`;
+    return `<button onclick="${fn}"
+      style="padding:4px 11px;border:1.5px solid ${color};border-radius:5px;
+             background:${sel?color:'transparent'};color:${sel?'#fff':color};
+             font-size:12px;font-weight:700;cursor:pointer">${val}</button>`;
+  };
+
+  const mkRow=(f,i)=>{
+    const dif=(parseFloat(f.efectivoDeposito)||0)-(parseFloat(f.efectivoIngreso)||0);
+    const difColor=dif===0?'var(--green)':dif>0?'var(--amber)':'var(--red)';
+    const esDomingo=f.dia==='DOMINGO';
+    const rowBg=esDomingo?'background:#fef9ec':'';
+    const fe=f.frecuenciaEstablecida||'';
+    const tj=f.tieneJustificacion||'';
+
+    // Col 8: ¿Se cuenta con justificación? — solo activa si frecuencia=NO
+    const col8=esRecoleccion?(fe==='NO'?`
+      <td style="padding:4px 10px;text-align:center;background:#fff8f0">
+        <div style="display:flex;gap:5px;justify-content:center">
+          ${mkBtnFila(i,'tieneJustificacion','SI')}${mkBtnFila(i,'tieneJustificacion','NO')}
+        </div>
+      </td>`
+      :`<td style="text-align:center;padding:6px;color:var(--ink-muted);font-size:18px">—</td>`)
+      :'';
+
+    // Col 9: Comentarios (tj=SI) o Días de desfase (tj=NO) — solo activa si frecuencia=NO y justificación respondida
+    let col9='';
+    if(esRecoleccion){
+      if(fe==='NO'&&tj==='SI'){
+        col9=`<td style="padding:4px 8px;background:#f0fff4">
+          <input placeholder="Comentario de justificación" value="${x(f.justificacionComentario||'')}"
+            oninput="state.visita.depositos.filas[${i}].justificacionComentario=this.value;autoSave()"
+            style="width:180px"/>
+        </td>`;
+      } else if(fe==='NO'&&tj==='NO'){
+        col9=`<td style="padding:4px 10px;text-align:center;background:#fffbf0">
+          <input type="number" min="0" step="1" placeholder="0" value="${f.diasDesfase||''}"
+            oninput="state.visita.depositos.filas[${i}].diasDesfase=this.value;autoSave()"
+            style="width:70px;text-align:center;padding:5px 8px;border:1.5px solid var(--amber);border-radius:6px;font-size:14px;font-weight:700;color:var(--amber)"/>
+        </td>`;
+      } else {
+        col9=`<td style="text-align:center;padding:6px;color:var(--ink-muted);font-size:18px">—</td>`;
+      }
+    }
+
+    return `<tr style="${rowBg}">
+      <td style="text-align:center;color:var(--ink-soft);font-weight:600;font-size:12px;padding:6px 8px">${i+1}</td>
+      <td style="padding:6px 10px;${tdS}">
+        <div style="font-weight:700;font-size:13px;color:var(--ink)">${f.dia||'—'}</div>
+        <div style="font-size:11px;color:var(--ink-soft);margin-top:1px">${f.fecha?new Date(f.fecha+'T12:00:00').toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'}):''}</div>
+      </td>
+      <td style="${tdS};padding:4px 8px"><input type="number" step="0.01" placeholder="0.00" value="${f.efectivoIngreso||''}"
+        oninput="state.visita.depositos.filas[${i}].efectivoIngreso=this.value;recalcDepositos();autoSave()"
+        style="width:110px;text-align:right"/></td>
+      <td style="padding:4px 8px"><input type="number" step="0.01" placeholder="0.00" value="${f.efectivoDeposito||''}"
+        oninput="state.visita.depositos.filas[${i}].efectivoDeposito=this.value;recalcDepositos();autoSave()"
+        style="width:110px;text-align:right"/></td>
+      <td id="dep_dif_${i}" style="${tdS};text-align:right;font-weight:700;padding:6px 10px;color:${difColor};min-width:90px">${fmt(dif)}</td>
+      ${esRecoleccion?`
+      <td style="padding:4px 10px;text-align:center">
+        <div style="display:flex;gap:5px;justify-content:center">
+          ${mkBtnFila(i,'antesDeUna','SI')}${mkBtnFila(i,'antesDeUna','NO')}
+        </div>
+      </td>
+      <td style="padding:4px 10px;text-align:center">
+        <div style="display:flex;gap:5px;justify-content:center">
+          ${mkBtnFila(i,'frecuenciaEstablecida','SI')}${mkBtnFila(i,'frecuenciaEstablecida','NO')}
+        </div>
+      </td>
+      ${col8}${col9}`:`
+      <td style="padding:4px 8px"><input placeholder="No. papeleta" value="${x(f.papeleta||'')}"
+        oninput="state.visita.depositos.filas[${i}].papeleta=this.value;autoSave()" style="width:110px"/></td>
+      <td style="padding:4px 10px;text-align:center">
+        <div style="display:flex;gap:5px;justify-content:center">
+          ${mkBtnFila(i,'recolectadoATiempo','SI')}${mkBtnFila(i,'recolectadoATiempo','NO')}
+        </div>
+      </td>
+      ${(f.recolectadoATiempo||'')==='NO'?`
+      <td style="padding:4px 10px;text-align:center;background:#fff8f0">
+        <div style="display:flex;gap:5px;justify-content:center">
+          ${mkBtnFila(i,'notificadoTesoreria','SI')}${mkBtnFila(i,'notificadoTesoreria','NO')}
+        </div>
+      </td>`:`<td style="text-align:center;color:var(--ink-muted);font-size:18px">—</td>`}
+      <td style="padding:4px 8px"><input placeholder="Comentario" value="${x(f.comentario||'')}"
+        oninput="state.visita.depositos.filas[${i}].comentario=this.value;autoSave()" style="width:140px"/></td>`}
+    </tr>`;
+  };
+
+  const hasFilas=filas.length>0;
+  const sumEfIng=filas.reduce((s,f)=>s+(parseFloat(f.efectivoIngreso)||0),0);
+  const sumEfDep=filas.reduce((s,f)=>s+(parseFloat(f.efectivoDeposito)||0),0);
+  const sumDif=sumEfDep-sumEfIng;
+  // columnas totales footer — esRecoleccion(NO): 4 cols; SI: papeleta + recolectado + notificado + comentario = 4
+  const colsTot='<td colspan="4"></td>';
+
+  let html=`<div class="step-header"><h2>Depósitos</h2>
+    <p>Selecciona el rango de días a revisar. Los días se cargan automáticamente con su nombre.</p></div>
+
+  <div class="card">
+    <div class="card-title">PERÍODO A REVISAR</div>
+    <div style="display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap;margin-bottom:20px">
+      <div class="field-inline">
+        <label>Fecha inicio</label>
+        <input type="date" id="depIni" value="${dep.fechaInicio||''}"
+          style="padding:9px 11px;border:1.5px solid var(--line);border-radius:8px;font-size:14px;cursor:pointer"/>
+      </div>
+      <div class="field-inline">
+        <label>Fecha fin</label>
+        <input type="date" id="depFin" value="${dep.fechaFin||''}"
+          style="padding:9px 11px;border:1.5px solid var(--line);border-radius:8px;font-size:14px;cursor:pointer"/>
+      </div>
+      <button class="btn btn-primary" onclick="aplicarRangoDepositos()" style="margin-bottom:1px">Generar días →</button>
+      <button class="btn" onclick="reiniciarDepositos()" style="margin-bottom:1px;border-color:var(--red);color:var(--red);background:transparent">Reiniciar</button>
+      ${hasFilas?`<span style="font-size:13px;color:var(--ink-soft);padding-bottom:4px">${filas.length} día${filas.length!==1?'s':''} cargado${filas.length!==1?'s':''}</span>`:''}
+    </div>
+    <div style="border-top:1px solid var(--line);padding-top:16px">
+      <div style="font-size:13px;font-weight:700;color:var(--ink-soft);letter-spacing:.04em;text-transform:uppercase;margin-bottom:10px">¿El PDV tiene recolección de Valores?</div>
+      <div style="display:flex;gap:10px">
+        ${btnSiNo('setRecoleccion','recoleccionValores','SI',rv)}
+        ${btnSiNo('setRecoleccion','recoleccionValores','NO',rv)}
+      </div>
+    </div>
+  </div>
+
+  ${!hasFilas||!rv?`<div class="card" style="text-align:center;padding:36px;color:var(--ink-soft)">
+    <div style="font-size:30px;margin-bottom:8px">${!rv?'❓':'📅'}</div>
+    <div style="font-size:14px;font-weight:600">${!rv&&!hasFilas?'Selecciona el rango de fechas, responde la pregunta y presiona <strong>Generar días</strong>':!rv?'Responde la pregunta sobre recolección de Valores para ver la tabla':'Selecciona el rango de fechas y presiona <strong>Generar días</strong>'}</div>
+  </div>`:`
+  <div class="card" style="overflow-x:auto">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <div class="card-title" style="margin:0">REVISIÓN DE DEPÓSITOS · ${filas.length} días</div>
+      ${esRecoleccion?'<span style="font-size:11px;background:#fce8e8;color:var(--red);padding:3px 10px;border-radius:20px;font-weight:700">SIN RECOLECCIÓN DE VALORES</span>':'<span style="font-size:11px;background:#e8f5e9;color:var(--green);padding:3px 10px;border-radius:20px;font-weight:700">CON RECOLECCIÓN DE VALORES</span>'}
+    </div>
+    <table class="data-table" style="min-width:${esRecoleccion?'860':'700'}px;border-collapse:collapse">
+      <thead>
+        ${esRecoleccion?`<tr>
+          <th style="width:32px">#</th>
+          <th style="${tdS}">DÍA / FECHA</th>
+          <th style="${tdS}">EFECTIVO INGRESOS</th>
+          <th>EFECTIVO DEPÓSITO</th>
+          <th style="${tdS};text-align:center">DIFERENCIA</th>
+          <th style="text-align:center;background:#eef0fb">¿Se depósito antes de la 1:00 p.m.?</th>
+          <th style="text-align:center;background:#eef5ee">¿Se depósito en su frecuencia establecida?</th>
+          <th style="text-align:center;background:#fff8f0">¿Se cuenta con justificación?</th>
+          <th style="text-align:center;background:#f0fff4">Comentario / Días de desfase</th>
+        </tr>`:`<tr>
+          <th style="width:32px">#</th>
+          <th style="${tdS}">DÍA / FECHA</th>
+          <th style="${tdS}">EFECTIVO INGRESOS</th>
+          <th>EFECTIVO DEPÓSITO</th>
+          <th style="${tdS};text-align:center">DIFERENCIA</th>
+          <th>NO. PAPELETA</th>
+          <th style="text-align:center;background:#eef0fb">¿FUE RECOLECTADO A TIEMPO?</th>
+          <th style="text-align:center;background:#fff8f0">¿FUE NOTIFICADO A TESORERÍA?</th>
+          <th>COMENTARIOS</th>
+        </tr>`}
+      </thead>
+      <tbody>${filas.map(mkRow).join('')}</tbody>
+      <tfoot><tr style="font-weight:700;background:var(--surface-2);border-top:2px solid var(--line)">
+        <td colspan="2" style="padding:9px">TOTALES</td>
+        <td id="dep_tot_ing" style="${tdS};padding:9px;text-align:right">${fmt(sumEfIng)}</td>
+        <td id="dep_tot_dep" style="padding:9px;text-align:right">${fmt(sumEfDep)}</td>
+        <td id="dep_tot_dif" style="${tdS};padding:9px;text-align:right;color:${sumDif===0?'var(--green)':sumDif>0?'var(--amber)':'var(--red)'}">${fmt(sumDif)}</td>
+        ${colsTot}
+        <td></td>
+      </tr></tfoot>
+    </table>
+  </div>
+  <div class="result-grid">
+    <div class="result-box"><div class="val" id="dep_res_ing">${fmt(sumEfIng)}</div><div class="lbl">EFECTIVO INGRESOS</div></div>
+    <div class="result-box"><div class="val" id="dep_res_dep">${fmt(sumEfDep)}</div><div class="lbl">EFECTIVO DEPÓSITOS</div></div>
+    <div class="result-box" id="dep_res_box"><div class="val" id="dep_res_dif">${fmt(sumDif)}</div><div class="lbl">DIFERENCIA</div></div>
+  </div>
+  ${esRecoleccion?(()=>{
+    const cntHorario=filas.filter(f=>f.antesDeUna==='NO').length;
+    const cntDesfase=filas.filter(f=>f.frecuenciaEstablecida==='NO'&&f.tieneJustificacion!=='SI').length;
+    const total=filas.length||1;
+    const pctHorario=Math.round(cntHorario/total*100);
+    const pctDesfase=Math.round(cntDesfase/total*100);
+    const lblHorario=cntHorario===0
+      ?'NINGÚN DEPÓSITO FUE REALIZADO FUERA DEL HORARIO ESTABLECIDO.'
+      :cntHorario===1
+        ?'1 DEPÓSITO FUE REALIZADO<br>DESPUÉS DE LA 1:00 P.M.'
+        :`${cntHorario} DEPÓSITOS FUERON REALIZADOS<br>DESPUÉS DE LA 1:00 P.M.`;
+    const lblDesfase=cntDesfase===0
+      ?'NINGÚN DEPÓSITO PRESENTA DESFASES SIN JUSTIFICAR.'
+      :cntDesfase===1
+        ?'1 DEPÓSITO FUE DEPOSITADO FUERA DE SU FRECUENCIA ESTABLECIDA.<br>(SIN JUSTIFICAR)'
+        :`${cntDesfase} DEPÓSITOS FUERON DEPOSITADOS FUERA DE SU FRECUENCIA ESTABLECIDA.<br>(SIN JUSTIFICAR)`;
+    return `<div class="result-grid" style="grid-template-columns:repeat(auto-fit,minmax(280px,1fr))">
+    <div class="result-box ${cntHorario>0?'red':'green'}" style="padding:22px 24px">
+      <div class="val" style="font-size:32px">${pctHorario}%</div>
+      <div class="lbl" style="font-size:13px;line-height:1.65;margin-top:10px">${lblHorario}</div>
+    </div>
+    <div class="result-box ${cntDesfase>0?'red':'green'}" style="padding:22px 24px">
+      <div class="val" style="font-size:32px">${pctDesfase}%</div>
+      <div class="lbl" style="font-size:13px;line-height:1.65;margin-top:10px">${lblDesfase}</div>
+    </div>
+  </div>`;
+  })():''}`}`;
+
+  // Contador incidencias recolección (tabla CON recolección)
+  if(!esRecoleccion&&hasFilas&&rv){
+    const cntRec=filas.filter(f=>f.recolectadoATiempo==='NO'&&f.notificadoTesoreria!=='SI').length;
+    const total=filas.length||1;
+    const pctRec=Math.round(cntRec/total*100);
+    const lblRec=cntRec===0
+      ?'TODAS LAS RECOLECCIONES FUERON REALIZADAS A TIEMPO.'
+      :cntRec===1
+        ?'1 RECOLECCIÓN NO FUE REALIZADA A TIEMPO.<br>(SIN NOTIFICAR A TESORERÍA)'
+        :`${cntRec} RECOLECCIONES NO FUERON REALIZADAS A TIEMPO.<br>(SIN NOTIFICAR A TESORERÍA)`;
+    html+=`<div class="result-grid" style="grid-template-columns:repeat(auto-fit,minmax(280px,1fr))">
+      <div class="result-box ${cntRec>0?'red':'green'}" style="padding:22px 24px">
+        <div class="val" style="font-size:32px">${pctRec}%</div>
+        <div class="lbl" style="font-size:13px;line-height:1.65;margin-top:10px">${lblRec}</div>
+      </div>
+    </div>`;
+  }
+  return html;
+}
+
+function recalcDepositos(){
+  const filas=state.visita.depositos?.filas||[];
+  let sumIng=0,sumDep=0;
+  filas.forEach((f,i)=>{
+    const ing=parseFloat(f.efectivoIngreso)||0;
+    const dep=parseFloat(f.efectivoDeposito)||0;
+    const dif=dep-ing; sumIng+=ing; sumDep+=dep;
+    const el=document.getElementById(`dep_dif_${i}`);
+    if(el){el.textContent=fmt(dif);el.style.color=dif===0?'var(--green)':dif>0?'var(--amber)':'var(--red)';}
+  });
+  const sumDif=sumDep-sumIng;
+  setText('dep_tot_ing',fmt(sumIng)); setText('dep_tot_dep',fmt(sumDep));
+  const difEl=document.getElementById('dep_tot_dif');
+  if(difEl){difEl.textContent=fmt(sumDif);difEl.style.color=sumDif===0?'var(--green)':sumDif>0?'var(--amber)':'var(--red)';}
+  setText('dep_res_ing',fmt(sumIng)); setText('dep_res_dep',fmt(sumDep));
+  const resDif=document.getElementById('dep_res_dif');
+  if(resDif){resDif.textContent=fmt(sumDif);resDif.style.color=sumDif===0?'var(--green)':sumDif>0?'var(--amber)':'var(--red)';}
+  const resBox=document.getElementById('dep_res_box');
+  if(resBox){resBox.className='result-box '+(sumDif===0?'green':sumDif>0?'amber':'red');}
+}
+
+/* ---- STEP: CANCELACIONES ---- */
+function renderCancelaciones(){
+  return `<div class="step-header"><h2>Cancelaciones</h2>
+    <p>Registro de cancelaciones realizadas en el período de revisión.</p></div>
+  <div class="card" style="text-align:center;padding:40px">
+    <div style="font-size:40px;margin-bottom:12px">🔧</div>
+    <div style="font-size:16px;font-weight:700;color:var(--ink);margin-bottom:6px">En construcción</div>
+    <div style="font-size:13px;color:var(--ink-soft)">Esta sección se completará próximamente.</div>
+  </div>`;
+}
+function renderCancelaciones_old(){
+  const c=state.visita.cancelaciones;
+  if(!c.registros) state.visita.cancelaciones.registros=[];
+  const regs=c.registros;
+  const mkRow=(r,i)=>`<tr>
+    <td><input type="date" value="${r.fecha||''}" oninput="state.visita.cancelaciones.registros[${i}].fecha=this.value;autoSave()"/></td>
+    <td><input value="${x(r.folio||'')}" placeholder="Folio" oninput="state.visita.cancelaciones.registros[${i}].folio=this.value;autoSave()"/></td>
+    <td><input value="${x(r.articulo||'')}" placeholder="Artículo/Descripción" oninput="state.visita.cancelaciones.registros[${i}].articulo=this.value;autoSave()"/></td>
+    <td><input type="number" step="0.01" value="${r.monto||''}" placeholder="0.00" oninput="state.visita.cancelaciones.registros[${i}].monto=this.value;autoSave()"/></td>
+    <td><input value="${x(r.motivo||'')}" placeholder="Motivo" oninput="state.visita.cancelaciones.registros[${i}].motivo=this.value;autoSave()"/></td>
+    <td><button class="icon-btn" onclick="removeCancelacion(${i})" style="color:var(--red)">✕</button></td>
+    </tr>`;
+  const total=regs.reduce((s,r)=>s+(parseFloat(r.monto)||0),0);
+  return `<div class="step-header"><h2>Cancelaciones</h2>
+    <p>Registro de cancelaciones realizadas en el período de revisión.</p></div>
+  <div class="card">
+    <div class="card-title">CANCELACIONES <span class="chip amber">${regs.length}</span></div>
+    <div style="overflow-x:auto"><table class="data-table">
+      <thead><tr><th>FECHA</th><th>FOLIO</th><th>ARTÍCULO</th><th>MONTO</th><th>MOTIVO</th><th></th></tr></thead>
+      <tbody>${regs.map(mkRow).join('')}</tbody>
+    </table></div>
+    <button class="btn btn-sm" style="margin-top:10px" onclick="addCancelacion()">+ Agregar cancelación</button>
+  </div>
+  <div class="result-grid">
+    <div class="result-box ${total>0?'red':'green'}"><div class="val">${fmt(total)}</div><div class="lbl">TOTAL CANCELACIONES</div></div>
+    <div class="result-box"><div class="val">${regs.length}</div><div class="lbl">REGISTROS</div></div>
+  </div>`;
+}
+function addCancelacion(){state.visita.cancelaciones.registros.push({fecha:'',folio:'',articulo:'',monto:'',motivo:''});autoSave();renderStep();}
+function removeCancelacion(i){state.visita.cancelaciones.registros.splice(i,1);autoSave();renderStep();}
+
+/* ---- STEP: DIFERENCIAS (Inventarios) ---- */
+function renderDiferencias(){
+  return `<div class="step-header"><h2>Diferencias de Inventario</h2>
+    <p>Consolidado de diferencias detectadas en serializados y accesorios.</p></div>
+  <div class="card" style="text-align:center;padding:40px">
+    <div style="font-size:40px;margin-bottom:12px">🔧</div>
+    <div style="font-size:16px;font-weight:700;color:var(--ink);margin-bottom:6px">En construcción</div>
+    <div style="font-size:13px;color:var(--ink-soft)">Esta sección se completará próximamente con el análisis consolidado de diferencias de serializados y accesorios.</div>
+  </div>`;
+}
+
+/* ---- FALLBACK ---- */
+function renderPendiente(){
+  return `<div class="step-header"><h2>Sección pendiente</h2><p>Esta sección está en construcción.</p></div>
+  <div class="card" style="text-align:center;padding:40px">
+    <div style="font-size:40px;margin-bottom:12px">🔧</div>
+    <div style="font-size:13px;color:var(--ink-soft)">Próximamente disponible.</div>
+  </div>`;
+}
+
+/* ---- STEP 3: CONCILIACION ---- */
+function renderConciliacion(){
+  const c=state.visita.conciliacion;
+  return `<div class="step-header"><h2>Inventario Serializados</h2>
+    <p>Carga el inventario de Oracle y registra los IMEI escaneados físicamente. La conciliación se calcula sola.</p></div>
+  <div class="card"><div class="card-title">1. INVENTARIO SEGÚN ORACLE <span class="chip amber" id="oracleCnt">${c.oracleItems.length} renglones</span></div>
+    <div class="upload-area" onclick="document.getElementById('oracleFile').click()">
+      <input type="file" id="oracleFile" accept=".xlsx,.xls" onchange="loadOracleFile(event)" style="display:none"/>
+      <div>📁 <strong>Cargar archivo de Oracle (.xlsx)</strong></div>
+      <div class="upload-label">Lee columnas por nombre: IMEI, Estatus, Artículo, Localizador, SKU</div>
+    </div>
+    <div><div class="card-title">O pega filas manualmente</div>
+      <textarea class="paste-area" id="oraclePaste" placeholder="Pega aquí (IMEI[tab]Estatus[tab]Artículo…)"></textarea>
+      <button class="btn btn-sm" style="margin-top:6px" onclick="loadOraclePaste()">Cargar filas pegadas</button>
+    </div>
+  </div>
+  <div class="card"><div class="card-title">2. IMEI ESCANEADOS EN TIENDA <span class="chip amber" id="escCnt">${c.escaneados.length}</span></div>
+    <div class="imei-input-row">
+      <input id="imeiInput" placeholder="Escanea o escribe IMEI y presiona Enter" onkeydown="if(event.key==='Enter')addImei()"/>
+      <button class="btn" onclick="addImei()">Agregar</button>
+    </div>
+    <div id="imeiList">${renderImeiList()}</div>
+  </div>
+  <div class="card"><div class="card-title">RESULTADO</div>
+    <div class="result-grid" id="concilResult">${renderConcilResult()}</div>
+  </div>`;
+}
+function loadOracleFile(evt){const f=evt.target.files[0];if(!f)return;const r=new FileReader();r.onload=e=>{try{const wb=XLSX.read(e.target.result,{type:'binary'});parseOracleRows(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:''}));}catch{toast('Error al leer el archivo');}};r.readAsBinaryString(f);}
+function loadOraclePaste(){const raw=document.getElementById('oraclePaste').value.trim();if(!raw)return;parseOracleRows(raw.split('\n').map(l=>{const[imei,estatus,articulo,localizador,nombreLoc,sku]=l.split('\t');return{IMEI:imei,Estatus:estatus,'Artículo':articulo,Localizador:localizador,'Nombre Localizador':nombreLoc,SKU:sku};}));}
+function parseOracleRows(rows){const fc=(row,ns)=>{for(const n of ns){const v=row[n];if(v!==undefined)return String(v).trim();}return '';};state.visita.conciliacion.oracleItems=rows.map(r=>({imei:fc(r,['IMEI','imei','IMEI/Serial','Serial']),estatus:fc(r,['Estatus','Status']),articulo:fc(r,['Artículo','Articulo','Item']),localizador:fc(r,['Localizador']),sku:fc(r,['SKU','sku'])})).filter(r=>r.imei);autoSave();recalcConciliacion();toast(`${state.visita.conciliacion.oracleItems.length} IMEIs cargados`);}
+function addImei(){const inp=document.getElementById('imeiInput');const val=inp.value.trim();if(!val)return;if(!state.visita.conciliacion.escaneados.includes(val))state.visita.conciliacion.escaneados.push(val);inp.value='';autoSave();recalcConciliacion();}
+function removeImei(imei){state.visita.conciliacion.escaneados=state.visita.conciliacion.escaneados.filter(i=>i!==imei);autoSave();recalcConciliacion();}
+function renderImeiList(){const esc=state.visita.conciliacion.escaneados,oracle=state.visita.conciliacion.oracleItems.map(i=>i.imei);if(!esc.length)return'<div style="color:var(--ink-soft);font-size:13px;padding:8px">Aún no se ha escaneado ningún IMEI</div>';return`<div class="imei-list">${esc.map(imei=>{const m=oracle.includes(imei);return`<div class="imei-row"><span>${imei}</span><div style="display:flex;align-items:center;gap:6px"><span class="chip ${m?'green':'red'}">${m?'Conciliado':'No en Oracle'}</span><button class="icon-btn" onclick="removeImei('${imei}')">✕</button></div></div>`;}).join('')}</div>`;}
+function renderConcilResult(){const c=state.visita.conciliacion,oI=c.oracleItems.map(i=>i.imei),eI=c.escaneados;const con=eI.filter(i=>oI.includes(i)).length,falt=oI.filter(i=>!eI.includes(i)).length,sob=eI.filter(i=>!oI.includes(i)).length;return`<div class="result-box green"><div class="val">${con}</div><div class="lbl">CONCILIADOS</div></div><div class="result-box red"><div class="val">${falt}</div><div class="lbl">FALTANTES</div></div><div class="result-box amber"><div class="val">${sob}</div><div class="lbl">SOBRANTES</div></div>`;}
+function recalcConciliacion(){setText('oracleCnt',state.visita.conciliacion.oracleItems.length+' renglones');setText('escCnt',state.visita.conciliacion.escaneados.length);const il=document.getElementById('imeiList');if(il)il.innerHTML=renderImeiList();const cr=document.getElementById('concilResult');if(cr)cr.innerHTML=renderConcilResult();}
+
+/* ---- STEP 4: ACCESORIOS ---- */
+function renderAcc(){
+  const items=state.visita.acc.items;
+  const mkRow=(it,i)=>`<tr>
+    <td>${it.sku||'—'}</td><td>${x(it.descripcion||'')}</td>
+    <td style="text-align:center">${it.oracle!==''?it.oracle:'—'}</td>
+    <td><input type="number" min="0" value="${it.contado||''}" style="width:70px" oninput="state.visita.acc.items[${i}].contado=this.value;recalcAcc();autoSave()"/></td>
+    <td id="acc_d_${i}" style="text-align:center">—</td><td id="acc_e_${i}"></td>
+    <td><input value="${x(it.comentario||'')}" oninput="state.visita.acc.items[${i}].comentario=this.value;autoSave()"/></td>
+    <td><button class="icon-btn" onclick="removeAcc(${i})">✕</button></td></tr>`;
+  return `<div class="step-header"><h2>Inventario Accesorios</h2>
+    <p>Conteo manual comparado contra el inventario de Oracle.</p></div>
+  <div class="card"><div class="card-title">CARGAR DESDE ORACLE (OPCIONAL)</div>
+    <textarea class="paste-area" id="accPaste" placeholder="Pega el reporte (SKU, Descripción, Cant. Oracle)"></textarea>
+    <button class="btn btn-sm" style="margin-top:6px" onclick="loadAccPaste()">Cargar filas</button></div>
+  <div class="card"><div class="card-title">CONTEO DE ACCESORIOS <span class="chip amber" id="accCnt">${items.length}</span></div>
+    <div style="overflow-x:auto"><table class="data-table">
+      <thead><tr><th>SKU</th><th>DESCRIPCIÓN</th><th>CANT. ORACLE</th><th>CANT. CONTADA</th><th>DIF.</th><th>ESTADO</th><th>COMENTARIO</th><th></th></tr></thead>
+      <tbody>${items.map(mkRow).join('')}</tbody></table></div>
+    <button class="btn btn-sm" style="margin-top:10px" onclick="addAcc()">+ Agregar accesorio</button></div>
+  <div class="card"><div class="card-title">RESUMEN</div>
+    <div class="result-grid" id="accResult">${renderAccResult()}</div></div>`;
+}
+function loadAccPaste(){const raw=document.getElementById('accPaste').value.trim();if(!raw)return;state.visita.acc.items=raw.split('\n').map(l=>{const c=l.split('\t');return{sku:(c[0]||'').trim(),descripcion:(c[1]||'').trim(),oracle:(c[2]||'').trim(),contado:'',comentario:''};}).filter(r=>r.sku||r.descripcion);autoSave();renderStep();toast(`${state.visita.acc.items.length} accesorios cargados`);}
+function addAcc(){state.visita.acc.items.push({sku:'',descripcion:'',oracle:'',contado:'',comentario:''});autoSave();renderStep();}
+function removeAcc(i){state.visita.acc.items.splice(i,1);autoSave();renderStep();}
+function renderAccResult(){let con=0,falt=0,sob=0,tot=0;state.visita.acc.items.forEach(it=>{const o=parseFloat(it.oracle),c=parseFloat(it.contado);if(!isNaN(c))tot+=c;if(!isNaN(o)&&!isNaN(c)){const d=c-o;if(d===0)con++;else if(d<0)falt+=Math.abs(d);else sob+=d;}});return`<div class="result-box green"><div class="val">${con}</div><div class="lbl">CONCILIADOS</div></div><div class="result-box red"><div class="val">${falt}</div><div class="lbl">FALTANTE</div></div><div class="result-box amber"><div class="val">${sob}</div><div class="lbl">SOBRANTE</div></div><div class="result-box"><div class="val">${tot}</div><div class="lbl">TOTAL CONTADOS</div></div>`;}
+function recalcAcc(){state.visita.acc.items.forEach((it,i)=>{const o=parseFloat(it.oracle),c=parseFloat(it.contado),de=document.getElementById(`acc_d_${i}`),ee=document.getElementById(`acc_e_${i}`);if(de&&!isNaN(o)&&!isNaN(c)){const d=c-o;de.textContent=(d>=0?'+':'')+d;de.style.color=d===0?'var(--green)':d>0?'var(--amber)':'var(--red)';if(ee)ee.innerHTML=d===0?'<span class="chip green">OK</span>':d>0?'<span class="chip amber">Sobrante</span>':'<span class="chip red">Faltante</span>';}else if(de)de.textContent='—';});setText('accCnt',state.visita.acc.items.length);const r=document.getElementById('accResult');if(r)r.innerHTML=renderAccResult();}
+
+/* ---- STEP 5: CANTADOS ---- */
+function renderCantados(){
+  const c=state.visita.cantados, regs=c.registros||[];
+  const bnd=regs.filter(r=>r.consumos==='NO'||r.dobleCotejo==='NO'||r.referenciasReales==='NO').length;
+  const mkReg=(r,i)=>`<tr>
+    <td>${x(r.cliente||'')}</td><td>${x(r.cuenta||'')}</td><td>${x(r.telefono||'')}</td>
+    <td style="white-space:nowrap">${r.fecha||''}</td><td>${r.semana||''}</td><td>${x(r.equipo||'')}</td>
+    <td><div class="checklist-radio-group">${['SI','NO'].map(v=>`<button class="radio-btn ${v==='SI'?'si':'no'} ${r.consumos===v?'active':''}" onclick="setCant(${i},'consumos','${v}')">${v}</button>`).join('')}</div></td>
+    <td><div class="checklist-radio-group">${['SI','NO'].map(v=>`<button class="radio-btn ${v==='SI'?'si':'no'} ${r.dobleCotejo===v?'active':''}" onclick="setCant(${i},'dobleCotejo','${v}')">${v}</button>`).join('')}</div></td>
+    <td><div class="checklist-radio-group">${['SI','NO'].map(v=>`<button class="radio-btn ${v==='SI'?'si':'no'} ${r.referenciasReales===v?'active':''}" onclick="setCant(${i},'referenciasReales','${v}')">${v}</button>`).join('')}</div></td>
+    <td><select onchange="setCant(${i},'estatusLinea',this.value)"><option value="">—</option>${['Activa','Suspendida','Cancelada'].map(o=>`<option ${r.estatusLinea===o?'selected':''} value="${o}">${o}</option>`).join('')}</select></td>
+    <td><select onchange="setCant(${i},'estatusCuenta',this.value)"><option value="">—</option>${['Al corriente','Con atraso'].map(o=>`<option ${r.estatusCuenta===o?'selected':''} value="${o}">${o}</option>`).join('')}</select></td>
+    <td><input value="${x(r.comentario||'')}" oninput="state.visita.cantados.registros[${i}].comentario=this.value;autoSave()"/></td>
+    <td><button class="icon-btn" onclick="removeCant(${i})">✕</button></td></tr>`;
+  return `<div class="step-header"><h2>Revisión de Líneas</h2>
+    <p>Verificación de ventas pospago para detectar posibles fraudes o irregularidades.</p></div>
+  <div class="card">
+    <div class="form-grid">
+      <div class="field-inline"><label>Semana</label>
+        <input value="${x(c.semana||'')}" oninput="state.visita.cantados.semana=this.value;autoSave()"/></div>
+    </div>
+    <div class="upload-area" style="margin-top:12px" onclick="document.getElementById('cantFile').click()">
+      <input type="file" id="cantFile" accept=".xlsx,.xls" onchange="loadCantados(event)" style="display:none"/>
+      <div>📁 <strong>Cargar archivo de Cantados (.xlsx)</strong></div>
+      <div class="upload-label">Se filtra automáticamente por el nombre de tienda de Datos Generales.</div>
+    </div></div>
+  <div class="card">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap">
+      <div class="card-title" style="margin:0">REGISTROS <span class="chip amber">${regs.length}</span></div>
+      ${bnd>0?`<span class="chip red">⚑ ${bnd} con bandera</span>`:''}
+    </div>
+    <div style="overflow-x:auto"><table class="data-table">
+      <thead><tr><th>CLIENTE</th><th>CUENTA</th><th>TELÉFONO</th><th>FECHA</th><th>SEMANA</th><th>EQUIPO</th><th>¿CONSUMOS?</th><th>¿DOBLE COTEJO?</th><th>¿REFERENCIAS REALES?</th><th>ESTATUS</th><th>ESTATUS CUENTA</th><th>COMENTARIOS</th><th></th></tr></thead>
+      <tbody>${regs.map(mkReg).join('')}</tbody></table></div>
+    <button class="btn btn-sm" style="margin-top:10px" onclick="addCant()">+ Agregar registro</button></div>`;
+}
+function loadCantados(evt){const f=evt.target.files[0];if(!f)return;const r=new FileReader();r.onload=e=>{try{const wb=XLSX.read(e.target.result,{type:'binary'});const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:''});const fc=(row,ns)=>{for(const n of ns){const v=row[n];if(v!==undefined)return String(v).trim();}return '';};const tienda=(state.visita.general.tienda||'').toLowerCase().trim();let flt=rows;if(tienda){flt=rows.filter(r=>{const t=fc(r,['Tienda','TIENDA','Punto de Venta','PDV']);return t.toLowerCase().includes(tienda)||tienda.includes(t.toLowerCase());});if(!flt.length)flt=rows;}state.visita.cantados.registros=flt.map(r=>({cliente:fc(r,['Cliente','CLIENTE','Nombre','Nombre Completo']),cuenta:fc(r,['Cuenta','CUENTA','No. Cuenta']),telefono:fc(r,['Teléfono','Telefono','Tel']),fecha:fc(r,['Fecha','FECHA','Fecha Venta']),semana:fc(r,['Semana','SEMANA']),equipo:fc(r,['Equipo','EQUIPO','Modelo','Artículo']),consumos:null,dobleCotejo:null,referenciasReales:null,estatusLinea:'',estatusCuenta:'',comentario:''}));autoSave();renderStep();toast(`${state.visita.cantados.registros.length} registros cargados`);}catch{toast('Error al leer el archivo');}};r.readAsBinaryString(f);}
+function setCant(i,campo,val){state.visita.cantados.registros[i][campo]=val;autoSave();renderStep();}
+function addCant(){state.visita.cantados.registros.push({cliente:'',cuenta:'',telefono:'',fecha:'',semana:'',equipo:'',consumos:null,dobleCotejo:null,referenciasReales:null,estatusLinea:'',estatusCuenta:'',comentario:''});autoSave();renderStep();}
+function removeCant(i){state.visita.cantados.registros.splice(i,1);autoSave();renderStep();}
+
+/* ---- STEP 6: RESUMEN ---- */
+function renderResumen(){
+  const v=state.visita, t=calcArqueoTotal(v.arqueo);
+  const dif=t.total-(parseFloat(v.arqueo.ingresosReporte)||0);
+  const oI=v.conciliacion.oracleItems.map(i=>i.imei);
+  const fI=oI.filter(i=>!v.conciliacion.escaneados.includes(i)).length;
+  const fA=v.acc.items.filter(it=>{const o=parseFloat(it.oracle),c=parseFloat(it.contado);return !isNaN(o)&&!isNaN(c)&&c<o;}).length;
+  const bnd=(v.cantados.registros||[]).filter(r=>r.consumos==='NO'||r.dobleCotejo==='NO'||r.referenciasReales==='NO').length;
+  return `<div class="step-header"><h2>Resumen de Visita</h2>
+    <p>Revisa los resultados de la visita y descarga el documento final.</p></div>
+  <div class="card"><div class="card-title">RESULTADOS GENERALES</div>
+    <div class="resumen-grid">
+      <div class="resumen-box"><div class="val" style="color:${dif===0?'var(--green)':dif>0?'var(--amber)':'var(--red)'}">${fmt(dif)}</div><div class="lbl">SOBRANTE / FALTANTE CAJA</div></div>
+      <div class="resumen-box"><div class="val" style="color:${fI>0?'var(--red)':'var(--green)'}">${fI}</div><div class="lbl">IMEI FALTANTES</div></div>
+      <div class="resumen-box"><div class="val" style="color:${fA>0?'var(--red)':'var(--green)'}">${fA}</div><div class="lbl">ACCESORIOS FALTANTES</div></div>
+      <div class="resumen-box"><div class="val" style="color:${bnd>0?'var(--red)':'var(--green)'}">${bnd}</div><div class="lbl">CANTADOS CON BANDERA</div></div>
+    </div></div>
+  <div class="card"><div class="card-title">DOCUMENTO</div>
+    <p style="font-size:13px;color:var(--ink-soft);margin-bottom:16px">Incluye arqueo, conciliación, accesorios y cantados con espacio de firmas.</p>
+    <div class="pdf-btns">
+      <button class="btn btn-primary" onclick="generarPDF()">📄 Descargar PDF</button>
+      <button class="btn" onclick="window.print()">🖨️ Imprimir</button>
+    </div></div>`;
+}
+
+/* ============================================================
+   PDF
+   ============================================================ */
+function generarPDF(){
+  const{jsPDF}=window.jspdf;
+  const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'letter'});
+  const v=state.visita, W=215.9, M=15; let y=20;
+  const addPage=()=>{doc.addPage();y=20;};
+  const checkY=(n=20)=>{if(y+n>270)addPage();};
+  doc.setFillColor(244,121,32);doc.rect(0,0,W,14,'F');
+  doc.setTextColor(255,255,255);doc.setFontSize(11);doc.setFont(undefined,'bold');
+  doc.text('PRIME MX · Supervisión de Tiendas',M,9);
+  doc.setFontSize(8);doc.setFont(undefined,'normal');
+  doc.text(`${v.general.tienda||'Sin tienda'} | ${v.general.fecha||'—'} | ${v.general.gerenteRegional||'—'}`,W-M,9,{align:'right'});
+  doc.setTextColor(21,23,27);y=22;
+  const title=t=>{checkY(12);doc.setFontSize(10);doc.setFont(undefined,'bold');doc.setFillColor(244,121,32);doc.rect(M,y,W-M*2,6,'F');doc.setTextColor(255,255,255);doc.text(t,M+3,y+4.2);doc.setTextColor(21,23,27);y+=8;};
+  const row=(l,val)=>{checkY(7);doc.setFontSize(8);doc.setFont(undefined,'bold');doc.text(l+':',M,y);doc.setFont(undefined,'normal');doc.text(String(val||'—'),100,y);y+=5.5;};
+  title('DATOS GENERALES');
+  row('Tienda',v.general.tienda);row('Fecha',v.general.fecha);
+  row('Gerente de Tienda',v.general.gerenteTienda);row('Gerente Regional',v.general.gerenteRegional);y+=4;
+  title('ARQUEO DE CAJA');
+  const a=v.arqueo;
+  const totB=[1000,500,200,100,50,20].reduce((s,d)=>s+(parseFloat(a.billetes[d])||0)*d,0);
+  const totM=[100,20,10,5,2,1].reduce((s,d)=>s+(parseFloat(a.monedas[d])||0)*d,0);
+  const ef=totB+totM, vou=parseFloat(a.vouchers)||0, tot=ef+vou;
+  const ing=parseFloat(a.ingresosReporte)||0, dif=tot-ing;
+  row('Total Efectivo (Billetes + Monedas)',fmt(ef));
+  row("Total Voucher's TDC y TDB",fmt(vou));
+  row("Efectivo + Voucher's TDC y TDB",fmt(tot));
+  row('Ingresos del día según reporte',fmt(ing));
+  row('SOBRANTE / FALTANTE',fmt(dif));
+  if(a.explicacionDiferencia)row('Explicación diferencia',a.explicacionDiferencia);
+  y+=4;doc.setFontSize(8);doc.setFont(undefined,'bold');doc.text('Detalle Billetes:',M,y);y+=5;
+  [[1000,'$1,000'],[500,'$500'],[200,'$200'],[100,'$100'],[50,'$50'],[20,'$20']].forEach(([d,l])=>{const c=parseFloat(a.billetes[d])||0;if(c>0){checkY(5);doc.setFont(undefined,'normal');doc.text(`  ${l} × ${c} = ${fmt(c*d)}`,M,y);y+=4.5;}});
+  y+=2;doc.setFont(undefined,'bold');doc.text('Detalle Monedas:',M,y);y+=5;
+  [[100,'$100'],[20,'$20'],[10,'$10'],[5,'$5'],[2,'$2'],[1,'$1']].forEach(([d,l])=>{const c=parseFloat(a.monedas[d])||0;if(c>0){checkY(5);doc.setFont(undefined,'normal');doc.text(`  ${l} × ${c} = ${fmt(c*d)}`,M,y);y+=4.5;}});
+  y+=4;title('CONCILIACIÓN DE INVENTARIO');
+  const oI=v.conciliacion.oracleItems.map(i=>i.imei),eI=v.conciliacion.escaneados;
+  row('IMEIs en Oracle',oI.length);row('IMEIs escaneados',eI.length);
+  row('Conciliados',eI.filter(i=>oI.includes(i)).length);
+  row('Faltantes',oI.filter(i=>!eI.includes(i)).length);
+  row('Sobrantes',eI.filter(i=>!oI.includes(i)).length);y+=4;
+  title('ACCESORIOS');
+  if(v.acc.items.length)v.acc.items.forEach(it=>{checkY(6);doc.setFontSize(8);doc.setFont(undefined,'normal');const d=(!isNaN(parseFloat(it.oracle))&&!isNaN(parseFloat(it.contado)))?String(parseFloat(it.contado)-parseFloat(it.oracle)):'—';doc.text(`${it.sku||'—'} | ${it.descripcion||'—'} | Oracle:${it.oracle||'—'} Contado:${it.contado||'—'} Dif:${d}`,M,y);y+=5;});
+  else{doc.setFontSize(8);doc.text('Sin accesorios registrados',M,y);y+=5;}y+=4;
+  title('CANTADOS POSPAGO');
+  const regs=v.cantados.registros||[];
+  row('Semana',v.cantados.semana);row('Total registros',regs.length);
+  row('Con bandera',regs.filter(r=>r.consumos==='NO'||r.dobleCotejo==='NO'||r.referenciasReales==='NO').length);
+  if(regs.length){y+=4;regs.forEach((r,ri)=>{checkY(6);doc.setFontSize(7);doc.setFont(undefined,'normal');doc.text(`${ri+1}. ${r.cliente||'—'} | ${r.cuenta||''} | Consumos:${r.consumos||'—'} | DblCotejo:${r.dobleCotejo||'—'} | Refs:${r.referenciasReales||'—'}`,M,y);y+=4.5;});}
+  checkY(40);y+=6;doc.setDrawColor(225,227,232);doc.line(M,y,W-M,y);y+=8;
+  doc.setFontSize(8);doc.setFont(undefined,'bold');doc.text('FIRMAS',M,y);y+=8;
+  const fw=(W-M*2-10)/2;
+  doc.line(M,y,M+fw,y);doc.line(M+fw+10,y,M+fw*2+10,y);y+=4;
+  doc.setFont(undefined,'normal');
+  doc.text('Gerente de Tienda',M,y);doc.text('Gerente Regional',M+fw+10,y);y+=4;
+  doc.text(v.general.gerenteTienda||'_______________',M,y);doc.text(v.general.gerenteRegional||'_______________',M+fw+10,y);
+  const tienda=(v.general.tienda||'tienda').replace(/\s+/g,'_');
+  const fecha=(v.general.fecha||new Date().toISOString().slice(0,10)).replace(/-/g,'');
+  doc.save(`supervision_${tienda}_${fecha}.pdf`);toast('PDF descargado');
+}
+
+/* ============================================================
+   BACKUP
+   ============================================================ */
+function exportBackup(){
+  const data=USERS[state.usuario]?.rol==='maestro'?cargarTodasLasVisitas():cargarVisitas();
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download=`respaldo_${state.usuario}_${new Date().toISOString().slice(0,10)}.json`;a.click();
+  toast('Respaldo exportado');
+}
+function importBackup(evt){
+  const f=evt.target.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=e=>{try{const data=JSON.parse(e.target.result);if(Array.isArray(data)){guardarVisitas(data);if(USERS[state.usuario]?.rol==='maestro')renderDashboard();else renderHome();toast(`${data.length} visitas importadas`);}else throw 0;}catch{toast('Archivo inválido');}};
+  r.readAsText(f);evt.target.value='';
+}
+
+/* ============================================================
+   UTILS
+   ============================================================ */
+let saveTimer=null;
+function autoSave(){clearTimeout(saveTimer);saveTimer=setTimeout(()=>guardarVisitaActual(),600);}
+function fmt(n){return new Intl.NumberFormat('es-MX',{style:'currency',currency:'MXN'}).format(n||0);}
+function x(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function setText(id,val){const el=document.getElementById(id);if(el)el.textContent=val;}
+function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500);}
+
+/* ============================================================
+   PERFIL DE USUARIO
+   ============================================================ */
+const PROFILE_KEY = 'prime_profiles_v1';
+
+function getUserTitle(usuario) {
+  return USERS[usuario]?.rol === 'maestro' ? 'Director Regional' : 'Gerente Regional Pacífico';
+}
+function cargarPerfiles() { try{return JSON.parse(localStorage.getItem(PROFILE_KEY)||'{}');}catch{return{};} }
+function guardarPerfil(usuario, data) {
+  const p = cargarPerfiles(); p[usuario] = {...(p[usuario]||{}), ...data};
+  localStorage.setItem(PROFILE_KEY, JSON.stringify(p));
+}
+function getPerfil(usuario) { return cargarPerfiles()[usuario] || {}; }
+
+function getInitial(usuario) {
+  const nombre = USERS[usuario]?.nombre || usuario;
+  return nombre.trim().charAt(0).toUpperCase();
+}
+
+function updateTopbarProfile() {
+  const u = state.usuario;
+  if (!u) return;
+  const perfil = getPerfil(u);
+  const nombre = USERS[u]?.nombre || u;
+  const titulo = getUserTitle(u);
+  const apellido = nombre.split(' ').slice(0,2).join(' '); // primeros dos tokens
+  const initial = getInitial(u);
+
+  // Topbar pill
+  setText('userTitleLabel', titulo);
+  setText('userNameLabel', apellido);
+  setText('topbarInitial', initial);
+  setText('dropInitial', initial);
+  setText('dropTitle', titulo);
+  setText('dropName', nombre.split(' ').slice(0,3).join(' '));
+
+  // Avatar photo
+  const topbarAv = document.getElementById('topbarAvatar');
+  const dropAv = document.getElementById('dropAvatar');
+  if (perfil.photo) {
+    topbarAv.innerHTML = `<img src="${perfil.photo}"/>`;
+    dropAv.innerHTML   = `<img src="${perfil.photo}"/>`;
+  } else {
+    topbarAv.innerHTML = `<span>${initial}</span>`;
+    dropAv.innerHTML   = `<span>${initial}</span>`;
+  }
+}
+
+// Dropdown toggle
+function toggleUserMenu(e) {
+  if (e) e.stopPropagation();
+  const dd = document.getElementById('userDropdown');
+  const btn = document.getElementById('userMenuBtn');
+  const isOpen = !dd.classList.contains('hidden');
+  dd.classList.toggle('hidden', isOpen);
+  btn.classList.toggle('open', !isOpen);
+}
+document.addEventListener('click', () => {
+  const dd = document.getElementById('userDropdown');
+  if (dd && !dd.classList.contains('hidden')) {
+    dd.classList.add('hidden');
+    document.getElementById('userMenuBtn')?.classList.remove('open');
+  }
+});
+
+// Photo modal
+function openProfileModal() {
+  const perfil = getPerfil(state.usuario);
+  const initial = getInitial(state.usuario);
+  const prev = document.getElementById('photoPreview');
+  setText('photoInitial', initial);
+  prev.innerHTML = perfil.photo
+    ? `<img src="${perfil.photo}" style="width:100%;height:100%;object-fit:cover"/>`
+    : `<span style="font-size:26px;font-weight:700;color:#fff">${initial}</span>`;
+  document.getElementById('profileModal').classList.remove('hidden');
+}
+function closeProfileModal() { document.getElementById('profileModal').classList.add('hidden'); }
+
+function handlePhotoUpload(evt) {
+  const file = evt.target.files[0];
+  if (!file) return;
+  if (file.size > 2 * 1024 * 1024) { toast('La imagen supera los 2 MB'); return; }
+  const reader = new FileReader();
+  reader.onload = e => {
+    const b64 = e.target.result;
+    guardarPerfil(state.usuario, { photo: b64 });
+    document.getElementById('photoPreview').innerHTML = `<img src="${b64}" style="width:100%;height:100%;object-fit:cover"/>`;
+    updateTopbarProfile();
+    toast('Foto actualizada');
+  };
+  reader.readAsDataURL(file);
+}
+function removePhoto() {
+  guardarPerfil(state.usuario, { photo: null });
+  const initial = getInitial(state.usuario);
+  document.getElementById('photoPreview').innerHTML = `<span style="font-size:26px;font-weight:700;color:#fff">${initial}</span>`;
+  updateTopbarProfile();
+  toast('Foto eliminada');
+}
+
+// Password modal
+function openPassModal() {
+  ['passActual','passNueva','passConfirm'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
+  const err = document.getElementById('passError');
+  if (err) { err.textContent=''; err.style.display='none'; }
+  document.getElementById('passModal').classList.remove('hidden');
+}
+function closePassModal() { document.getElementById('passModal').classList.add('hidden'); }
+
+async function guardarNuevaPass() {
+  const actual  = document.getElementById('passActual').value;
+  const nueva   = document.getElementById('passNueva').value;
+  const confirm = document.getElementById('passConfirm').value;
+  const err = document.getElementById('passError');
+  const showErr = msg => { err.textContent=msg; err.style.display='block'; };
+
+  // Verificar contraseña actual comparando hashes
+  const hashActual = await sha256(actual);
+  const passGuardada = getPerfil(state.usuario).pass || USERS[state.usuario]?.pass;
+  if (hashActual !== passGuardada) { showErr('La contraseña actual es incorrecta.'); return; }
+  if (nueva.length < 6)           { showErr('La nueva contraseña debe tener al menos 6 caracteres.'); return; }
+  if (nueva !== confirm)          { showErr('Las contraseñas no coinciden.'); return; }
+
+  // Guardar nueva contraseña como hash
+  const hashNueva = await sha256(nueva);
+  guardarPerfil(state.usuario, { pass: hashNueva });
+  if (USERS[state.usuario]) USERS[state.usuario].pass = hashNueva;
+  closePassModal();
+  toast('Contraseña actualizada correctamente');
+}
+
+/* ============================================================
+   OVERRIDE afterLogin para incluir perfil
+   ============================================================ */
+function afterLogin() {
+  const u = USERS[state.usuario];
+  document.getElementById('topbarActions').style.display = 'flex';
+  updateTopbarProfile();
+  hideAll();
+  if (u.rol === 'maestro') showDashboard(); else showHome();
+}
+
+/* INIT */
+checkAuth();
+</script>
+</body>
+</html>
