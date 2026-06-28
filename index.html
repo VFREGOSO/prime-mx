@@ -192,9 +192,11 @@ input,select,textarea{font-family:inherit;font-size:14px}
 .chip.blue{background:var(--blue-bg);color:var(--blue)}
 
 /* === DATA TABLE === */
-.data-table{width:100%;border-collapse:collapse;font-size:13px}
-.data-table th{text-align:left;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-muted);padding:7px 9px;border-bottom:1.5px solid var(--line);white-space:nowrap;background:var(--surface-2)}
-.data-table td{padding:6px 9px;border-bottom:1px solid var(--bg);vertical-align:middle}
+.data-table{width:100%;border-collapse:collapse;font-size:13px;font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+.data-table th{text-align:left;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft);padding:9px 13px;border-bottom:1px solid var(--line);background:var(--surface-2)}
+.data-table td{padding:9px 13px;border-bottom:1px solid var(--line);vertical-align:middle;background:#fff;color:var(--ink);font-size:13px}
+.data-table tr:last-child td{border-bottom:none}
+.data-table tr:hover td{background:var(--surface-2)}
 .data-table td input,.data-table td select{padding:4px 8px;border:1px solid var(--line);border-radius:var(--radius-xs);outline:none;background:var(--surface);width:100%;font-size:12px}
 .data-table td input:focus,.data-table td select:focus{border-color:var(--orange)}
 .paste-area{width:100%;padding:9px 11px;border:1.5px solid var(--line);border-radius:var(--radius-sm);font-size:12px;resize:vertical;outline:none;min-height:60px;background:var(--surface)}
@@ -293,6 +295,7 @@ input,select,textarea{font-family:inherit;font-size:14px}
         </div>
         <button class="udrop-item" onclick="openProfileModal();toggleUserMenu()"><span class="udrop-icon">🖼️</span> Foto de perfil</button>
         <button class="udrop-item" onclick="openPassModal();toggleUserMenu()"><span class="udrop-icon">🔑</span> Cambiar contraseña</button>
+        <button class="udrop-item" id="adminPassBtn" style="display:none" onclick="openAdminPassModal();toggleUserMenu()"><span class="udrop-icon">👥</span> Gestión de contraseñas</button>
         <button class="udrop-item danger" onclick="logout()"><span class="udrop-icon">⏻</span> Cerrar sesión</button>
       </div>
     </div>
@@ -385,6 +388,20 @@ input,select,textarea{font-family:inherit;font-size:14px}
       <div class="field"><label>Confirmar nueva contraseña</label><input type="password" id="passConfirm" placeholder="Repite la nueva contraseña"/></div>
       <div id="passError" style="color:var(--red);font-size:13px;margin-bottom:10px;display:none"></div>
       <button class="btn btn-primary" style="width:100%;justify-content:center" onclick="guardarNuevaPass()">Actualizar contraseña</button>
+    </div>
+  </div>
+</div>
+
+<!-- Admin: gestión de contraseñas (solo maestro) -->
+<div class="modal-overlay hidden" id="adminPassModal" onclick="if(event.target===this)closeAdminPassModal()">
+  <div class="modal-box" style="max-width:520px">
+    <div class="modal-head">
+      <h3>Gestión de contraseñas</h3>
+      <button class="modal-close" onclick="closeAdminPassModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:13px;color:var(--ink-soft);margin:0 0 16px">Como maestro puedes restablecer la contraseña de cualquier usuario. No necesitas conocer la contraseña actual.</p>
+      <div id="adminUserList"></div>
     </div>
   </div>
 </div>
@@ -494,6 +511,7 @@ const PASOS = [
 const STORAGE_KEY = 'prime_supervisiones_v1';
 const AUTH_KEY    = 'prime_supervision_auth';
 let state = { visita:null, step:0, usuario:null };
+let concilFiltro = { faltantes:true, conciliados:true, sobrantes:true };
 
 /* ============================================================
    MODELO DE DATOS
@@ -524,11 +542,11 @@ function nuevaVisita() {
     },
     arqueo: {
       billetes: { 1000:'',500:'',200:'',100:'',50:'',20:'' },
-      monedas:  { 100:'',20:'',10:'',5:'',2:'',1:'' },
+      monedas:  { 20:'',10:'',5:'',2:'',1:'' },
       vouchers: '',          // Voucher's TDC y TDB
       ingresosReporte: ''
     },
-    depositos: { fechaInicio:'', fechaFin:'', recoleccionValores:'', filas:[] },
+    depositos: { modoCaptura:'', fechaInicio:'', fechaFin:'', recoleccionValores:'', filas:[] },
     cancelaciones: { registros:[] },
     conciliacion: { oracleItems:[], escaneados:[] },
     acc: { items:[] },
@@ -780,7 +798,7 @@ function renderGeneral() {
 function renderArqueo() {
   const a=state.visita.arqueo;
   const bRows=[[1000,'$1,000'],[500,'$500'],[200,'$200'],[100,'$100'],[50,'$50'],[20,'$20']];
-  const mRows=[[100,'$100'],[20,'$20'],[10,'$10'],[5,'$5'],[2,'$2'],[1,'$1']];
+  const mRows=[[20,'$20'],[10,'$10'],[5,'$5'],[2,'$2'],[1,'$1']];
   const bRow=([d,l])=>`<tr><td>${l}</td>
     <td><input type="number" min="0" step="1" value="${a.billetes[d]||''}" oninput="state.visita.arqueo.billetes['${d}']=this.value;recalcArqueo();autoSave()"/></td>
     <td id="arq_b_${d}">$0.00</td></tr>`;
@@ -840,7 +858,7 @@ function renderArqueo() {
 function calcArqueoTotal(arqueo) {
   let ef=0;
   [1000,500,200,100,50,20].forEach(d=>ef+=(parseFloat(arqueo.billetes[d])||0)*d);
-  [100,20,10,5,2,1].forEach(d=>ef+=(parseFloat(arqueo.monedas[d])||0)*d);
+  [20,10,5,2,1].forEach(d=>ef+=(parseFloat(arqueo.monedas[d])||0)*d);
   const vouchers=parseFloat(arqueo.vouchers)||0;
   return {efectivo:ef, vouchers, total:ef+vouchers};
 }
@@ -849,7 +867,7 @@ function recalcArqueo() {
   const a=state.visita.arqueo;
   let totB=0,totM=0;
   [1000,500,200,100,50,20].forEach(d=>{const imp=(parseFloat(a.billetes[d])||0)*d;totB+=imp;setText(`arq_b_${d}`,fmt(imp));});
-  [100,20,10,5,2,1].forEach(d=>{const imp=(parseFloat(a.monedas[d])||0)*d;totM+=imp;setText(`arq_m_${d}`,fmt(imp));});
+  [20,10,5,2,1].forEach(d=>{const imp=(parseFloat(a.monedas[d])||0)*d;totM+=imp;setText(`arq_m_${d}`,fmt(imp));});
   const ef=totB+totM, vou=parseFloat(a.vouchers)||0, tot=ef+vou;
   const ing=parseFloat(a.ingresosReporte)||0, dif=tot-ing;
   setText('arq_tot_b',fmt(totB));setText('arq_tot_m',fmt(totM));
@@ -896,8 +914,127 @@ function aplicarRangoDepositos(){
 
 function reiniciarDepositos(){
   if(!confirm('¿Reiniciar la tabla de Depósitos? Se perderán todos los datos capturados.'))return;
-  state.visita.depositos={fechaInicio:'',fechaFin:'',recoleccionValores:'',filas:[]};
+  state.visita.depositos={modoCaptura:'',fechaInicio:'',fechaFin:'',recoleccionValores:'',filas:[]};
   autoSave();renderStep();toast('Tabla reiniciada');
+}
+
+function setModoDepositos(modo){
+  state.visita.depositos.modoCaptura=modo;
+  // Al cambiar modo, limpiamos filas pero conservamos pregunta de recolección
+  state.visita.depositos.filas=[];
+  state.visita.depositos.fechaInicio='';
+  state.visita.depositos.fechaFin='';
+  autoSave();renderStep();
+}
+
+function procesarExcelDepositos(input){
+  const file=input.files[0];
+  if(!file){return;}
+  const reader=new FileReader();
+  reader.onload=function(e){
+    try{
+      // Leer sin formateo para preservar valores originales
+      const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      // raw:true para números reales; defval:'' para celdas vacías
+      const data=XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:''});
+
+      // Buscar fila de encabezados buscando "Fecha" y "transaccion" por separado (tolerante a acentos)
+      let headerRow=-1;
+      for(let i=0;i<data.length;i++){
+        const row=data[i];
+        if(!row||!row.length)continue;
+        const rowStr=row.map(c=>String(c||'').toLowerCase()).join('|');
+        if(rowStr.includes('fecha')&&rowStr.includes('transac')){
+          headerRow=i; break;
+        }
+      }
+      if(headerRow===-1){
+        toast('No se encontró el encabezado "Fecha de transaccion" en el archivo.');
+        return;
+      }
+
+      const headers=data[headerRow].map(h=>String(h||'').toLowerCase());
+      const idxFecha  =headers.findIndex(h=>h.includes('fecha')&&h.includes('transac'));
+      const idxImporte=headers.findIndex(h=>h.includes('importe')&&h.includes('depositar'));
+      const idxEstatus=headers.findIndex(h=>h.includes('estatus'));
+
+      if(idxFecha===-1||idxImporte===-1){
+        toast(`Columnas no encontradas. Encabezados detectados: ${data[headerRow].join(', ')}`);
+        return;
+      }
+
+      // Función para convertir fecha Excel al formato ISO
+      function toISO(val){
+        if(!val&&val!==0)return'';
+        // Si es número (fecha serial de Excel)
+        if(typeof val==='number'){
+          const d=XLSX.SSF.parse_date_code(val);
+          if(d) return`${d.y}-${String(d.m).padStart(2,'0')}-${String(d.d).padStart(2,'0')}`;
+        }
+        const s=String(val).trim();
+        // DD/MM/YYYY
+        const m1=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+        if(m1)return`${m1[3]}-${m1[2].padStart(2,'0')}-${m1[1].padStart(2,'0')}`;
+        // YYYY-MM-DD (ya en formato correcto)
+        if(/^\d{4}-\d{2}-\d{2}$/.test(s))return s;
+        return s;
+      }
+
+      const filas=[];
+      for(let i=headerRow+1;i<data.length;i++){
+        const row=data[i];
+        if(!row||!row.length)continue;
+        const fechaVal=row[idxFecha];
+        if(!fechaVal&&fechaVal!==0)continue;
+
+        // Omitir "Por Cerrar"
+        const estatus=String(row[idxEstatus]||'').trim().toLowerCase();
+        if(estatus.includes('por cerrar'))continue;
+
+        const iso=toISO(fechaVal);
+        if(!iso)continue;
+
+        const importeRaw=row[idxImporte];
+        const importe=typeof importeRaw==='number'
+          ?importeRaw
+          :parseFloat(String(importeRaw||'').replace(/[,$\s]/g,''))||0;
+
+        filas.push({
+          fecha:iso,
+          dia:getDiaSemana(iso),
+          efectivoIngreso:importe>0?importe.toFixed(2):'',
+          efectivoDeposito:'',
+          papeleta:'',
+          comentario:'',
+          antesDeUna:'',
+          frecuenciaEstablecida:'',
+          tieneJustificacion:'',
+          justificacionComentario:'',
+          diasDesfase:'',
+          recolectadoATiempo:'',
+          notificadoTesoreria:''
+        });
+      }
+
+      if(filas.length===0){
+        toast('No se encontraron cortes válidos (revisa que no todos sean "Por Cerrar").');
+        return;
+      }
+
+      const fechas=filas.map(f=>f.fecha).filter(Boolean).sort();
+      state.visita.depositos.fechaInicio=fechas[0]||'';
+      state.visita.depositos.fechaFin=fechas[fechas.length-1]||'';
+      state.visita.depositos.filas=filas;
+      autoSave();renderStep();
+      toast(`✓ ${filas.length} corte${filas.length!==1?'s':''} importado${filas.length!==1?'s':''} correctamente`);
+
+    }catch(err){
+      console.error('Excel error:',err);
+      toast('Error al procesar el archivo: '+err.message);
+    }
+  };
+  reader.readAsArrayBuffer(file);
 }
 
 function setRecoleccion(val){
@@ -935,8 +1072,9 @@ function setDepNotificadoTesoreria(i,val){
 }
 
 function renderDepositos(){
-  if(!state.visita.depositos) state.visita.depositos={fechaInicio:'',fechaFin:'',recoleccionValores:'',filas:[]};
+  if(!state.visita.depositos) state.visita.depositos={modoCaptura:'',fechaInicio:'',fechaFin:'',recoleccionValores:'',filas:[]};
   const dep=state.visita.depositos;
+  if(!dep.modoCaptura) dep.modoCaptura='';
   if(dep.recoleccionValores===undefined) dep.recoleccionValores='';
   const filas=dep.filas||[];
   const rv=dep.recoleccionValores; // '' | 'SI' | 'NO'
@@ -1058,11 +1196,35 @@ function renderDepositos(){
   // columnas totales footer — esRecoleccion(NO): 4 cols; SI: papeleta + recolectado + notificado + comentario = 4
   const colsTot='<td colspan="4"></td>';
 
+  const modo=dep.modoCaptura||'';
+
   let html=`<div class="step-header"><h2>Depósitos</h2>
-    <p>Selecciona el rango de días a revisar. Los días se cargan automáticamente con su nombre.</p></div>
+    <p>Selecciona cómo deseas capturar los depósitos del período a revisar.</p></div>
 
   <div class="card">
+    <div class="card-title">MODO DE CAPTURA</div>
+    <div style="display:flex;gap:14px;flex-wrap:wrap">
+      <button onclick="setModoDepositos('excel')" style="flex:1;min-width:200px;padding:18px 20px;border-radius:10px;border:2px solid ${modo==='excel'?'var(--primary)':'var(--line)'};background:${modo==='excel'?'var(--primary-soft)':'var(--surface)'};cursor:pointer;text-align:left;transition:.15s">
+        <div style="font-size:22px;margin-bottom:6px">📄</div>
+        <div style="font-weight:700;font-size:14px;color:var(--ink)">Cargar archivo Excel</div>
+        <div style="font-size:12px;color:var(--ink-soft);margin-top:3px">El sistema lee el rango de fechas e importes automáticamente del reporte de cortes</div>
+      </button>
+      <button onclick="setModoDepositos('manual')" style="flex:1;min-width:200px;padding:18px 20px;border-radius:10px;border:2px solid ${modo==='manual'?'var(--primary)':'var(--line)'};background:${modo==='manual'?'var(--primary-soft)':'var(--surface)'};cursor:pointer;text-align:left;transition:.15s">
+        <div style="font-size:22px;margin-bottom:6px">✏️</div>
+        <div style="font-weight:700;font-size:14px;color:var(--ink)">Captura manual</div>
+        <div style="font-size:12px;color:var(--ink-soft);margin-top:3px">Selecciona el rango de fechas y captura los importes manualmente</div>
+      </button>
+    </div>
+  </div>
+
+  ${modo===''?'':`<div class="card">
     <div class="card-title">PERÍODO A REVISAR</div>
+    ${modo==='excel'?`
+    <div style="margin-bottom:16px">
+      <label style="display:block;font-size:13px;font-weight:700;color:var(--ink-soft);margin-bottom:8px">ARCHIVO REPORTE DE CORTES (.xlsx)</label>
+      <input type="file" accept=".xlsx,.xls" id="depExcelInput" onchange="procesarExcelDepositos(this)" style="font-size:13px"/>
+      ${hasFilas?`<div style="margin-top:10px;padding:8px 12px;background:var(--surface-2);border-radius:8px;font-size:13px;color:var(--green);font-weight:600">✓ ${filas.length} corte${filas.length!==1?'s':''} cargado${filas.length!==1?'s':''} · ${dep.fechaInicio} al ${dep.fechaFin}</div>`:''}
+    </div>`:`
     <div style="display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap;margin-bottom:20px">
       <div class="field-inline">
         <label>Fecha inicio</label>
@@ -1075,21 +1237,23 @@ function renderDepositos(){
           style="padding:9px 11px;border:1.5px solid var(--line);border-radius:8px;font-size:14px;cursor:pointer"/>
       </div>
       <button class="btn btn-primary" onclick="aplicarRangoDepositos()" style="margin-bottom:1px">Generar días →</button>
-      <button class="btn" onclick="reiniciarDepositos()" style="margin-bottom:1px;border-color:var(--red);color:var(--red);background:transparent">Reiniciar</button>
       ${hasFilas?`<span style="font-size:13px;color:var(--ink-soft);padding-bottom:4px">${filas.length} día${filas.length!==1?'s':''} cargado${filas.length!==1?'s':''}</span>`:''}
-    </div>
-    <div style="border-top:1px solid var(--line);padding-top:16px">
-      <div style="font-size:13px;font-weight:700;color:var(--ink-soft);letter-spacing:.04em;text-transform:uppercase;margin-bottom:10px">¿El PDV tiene recolección de Valores?</div>
-      <div style="display:flex;gap:10px">
-        ${btnSiNo('setRecoleccion','recoleccionValores','SI',rv)}
-        ${btnSiNo('setRecoleccion','recoleccionValores','NO',rv)}
+    </div>`}
+    <div style="border-top:1px solid var(--line);padding-top:16px;display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px">
+      <div>
+        <div style="font-size:13px;font-weight:700;color:var(--ink-soft);letter-spacing:.04em;text-transform:uppercase;margin-bottom:10px">¿El PDV tiene recolección de Valores?</div>
+        <div style="display:flex;gap:10px">
+          ${btnSiNo('setRecoleccion','recoleccionValores','SI',rv)}
+          ${btnSiNo('setRecoleccion','recoleccionValores','NO',rv)}
+        </div>
       </div>
+      <button onclick="reiniciarDepositos()" style="padding:7px 14px;border-radius:8px;border:1.5px solid var(--red);color:var(--red);background:transparent;cursor:pointer;font-size:13px;font-weight:600">Reiniciar</button>
     </div>
-  </div>
+  </div>`}
 
-  ${!hasFilas||!rv?`<div class="card" style="text-align:center;padding:36px;color:var(--ink-soft)">
+  ${modo===''?'':((!hasFilas||!rv)?`<div class="card" style="text-align:center;padding:36px;color:var(--ink-soft)">
     <div style="font-size:30px;margin-bottom:8px">${!rv?'❓':'📅'}</div>
-    <div style="font-size:14px;font-weight:600">${!rv&&!hasFilas?'Selecciona el rango de fechas, responde la pregunta y presiona <strong>Generar días</strong>':!rv?'Responde la pregunta sobre recolección de Valores para ver la tabla':'Selecciona el rango de fechas y presiona <strong>Generar días</strong>'}</div>
+    <div style="font-size:14px;font-weight:600">${modo==='excel'&&!hasFilas?'Sube el archivo Excel del reporte de cortes':!rv?'Responde la pregunta sobre recolección de Valores para ver la tabla':'Selecciona el rango de fechas y presiona <strong>Generar días</strong>'}</div>
   </div>`:`
   <div class="card" style="overflow-x:auto">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
@@ -1162,7 +1326,7 @@ function renderDepositos(){
       <div class="lbl" style="font-size:13px;line-height:1.65;margin-top:10px">${lblDesfase}</div>
     </div>
   </div>`;
-  })():''}`}`;
+  })():''}`)}`;
 
   // Contador incidencias recolección (tabla CON recolección)
   if(!esRecoleccion&&hasFilas&&rv){
@@ -1267,40 +1431,187 @@ function renderPendiente(){
 }
 
 /* ---- STEP 3: CONCILIACION ---- */
-function renderConciliacion(){
+function toggleConcilFiltro(key){
+  concilFiltro[key]=!concilFiltro[key];
+  const ot=document.getElementById('oracleTable');
+  if(ot)ot.innerHTML=renderOracleTable();
+}
+function renderOracleTable(){
   const c=state.visita.conciliacion;
-  return `<div class="step-header"><h2>Inventario Serializados</h2>
-    <p>Carga el inventario de Oracle y registra los IMEI escaneados físicamente. La conciliación se calcula sola.</p></div>
-  <div class="card"><div class="card-title">1. INVENTARIO SEGÚN ORACLE <span class="chip amber" id="oracleCnt">${c.oracleItems.length} renglones</span></div>
-    <div class="upload-area" onclick="document.getElementById('oracleFile').click()">
-      <input type="file" id="oracleFile" accept=".xlsx,.xls" onchange="loadOracleFile(event)" style="display:none"/>
-      <div>📁 <strong>Cargar archivo de Oracle (.xlsx)</strong></div>
-      <div class="upload-label">Lee columnas por nombre: IMEI, Estatus, Artículo, Localizador, SKU</div>
-    </div>
-    <div><div class="card-title">O pega filas manualmente</div>
-      <textarea class="paste-area" id="oraclePaste" placeholder="Pega aquí (IMEI[tab]Estatus[tab]Artículo…)"></textarea>
-      <button class="btn btn-sm" style="margin-top:6px" onclick="loadOraclePaste()">Cargar filas pegadas</button>
-    </div>
-  </div>
-  <div class="card"><div class="card-title">2. IMEI ESCANEADOS EN TIENDA <span class="chip amber" id="escCnt">${c.escaneados.length}</span></div>
-    <div class="imei-input-row">
-      <input id="imeiInput" placeholder="Escanea o escribe IMEI y presiona Enter" onkeydown="if(event.key==='Enter')addImei()"/>
-      <button class="btn" onclick="addImei()">Agregar</button>
-    </div>
-    <div id="imeiList">${renderImeiList()}</div>
-  </div>
-  <div class="card"><div class="card-title">RESULTADO</div>
-    <div class="result-grid" id="concilResult">${renderConcilResult()}</div>
+  const esc=c.escaneados;
+  if(!c.oracleItems.length) return '';
+
+  // Sobrantes = escaneados que NO están en Oracle
+  const oracleImeis=c.oracleItems.map(i=>i.imei);
+  const sobrantes=esc.filter(i=>!oracleImeis.includes(i));
+
+  // Filas Oracle filtradas
+  const oracleRows=c.oracleItems
+    .map(it=>{ const conciliado=esc.includes(it.imei); return{it,conciliado,tipo:conciliado?'conciliados':'faltantes'}; })
+    .filter(({tipo})=>concilFiltro[tipo]);
+
+  // Filas Sobrantes
+  const sobrantesRows=concilFiltro.sobrantes
+    ? sobrantes.map(imei=>`<tr>
+        <td>${imei}</td>
+        <td style="color:var(--ink-soft)">—</td>
+        <td style="color:var(--ink-soft)">—</td>
+        <td><span class="chip amber">Sobrante</span></td>
+      </tr>`).join('')
+    : '';
+
+  const oracleHTML=oracleRows.map(({it,conciliado})=>`<tr>
+    <td>${it.imei}</td>
+    <td>${it.articulo||'—'}</td>
+    <td>${it.localizador||'—'}</td>
+    <td><span class="chip ${conciliado?'green':'red'}">${conciliado?'Conciliado':'Faltante'}</span></td>
+  </tr>`).join('');
+
+  const total=oracleRows.length+( concilFiltro.sobrantes?sobrantes.length:0 );
+
+  return `<div style="margin-top:16px">
+    <div style="font-size:12px;color:var(--ink-soft);margin-bottom:6px">${total} registro${total!==1?'s':''} mostrado${total!==1?'s':''}</div>
+    <table class="data-table" style="table-layout:fixed;width:100%">
+      <colgroup>
+        <col style="width:38%"/>
+        <col style="width:30%"/>
+        <col style="width:18%"/>
+        <col style="width:14%"/>
+      </colgroup>
+      <thead><tr>
+        <th>IMEI</th><th>ARTÍCULO</th><th>LOCALIZADOR</th><th>ESTADO</th>
+      </tr></thead>
+      <tbody>${oracleHTML}${sobrantesRows}</tbody>
+    </table>
   </div>`;
 }
-function loadOracleFile(evt){const f=evt.target.files[0];if(!f)return;const r=new FileReader();r.onload=e=>{try{const wb=XLSX.read(e.target.result,{type:'binary'});parseOracleRows(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:''}));}catch{toast('Error al leer el archivo');}};r.readAsBinaryString(f);}
+function renderConcilControls(hasItems){
+  if(!hasItems) return '';
+  const chk=(key,label,color)=>
+    '<label style="display:flex;align-items:center;gap:5px;font-size:13px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;cursor:pointer">'+
+    '<input type="checkbox" '+(concilFiltro[key]?'checked':'')+' onchange="toggleConcilFiltro(\''+key+'\')"/>'+
+    '<span style="color:'+color+'">'+label+'</span></label>';
+  return '<button class="btn btn-sm" style="border-color:var(--red);color:var(--red)" onclick="state.visita.conciliacion.oracleItems=[];autoSave();renderStep()">Vaciar lista</button>'+
+    '<div style="display:flex;gap:14px;align-items:center;margin-left:10px;padding-left:12px;border-left:1.5px solid var(--line)">'+
+    '<span style="font-size:11px;font-weight:700;color:var(--ink-soft);letter-spacing:.05em">MOSTRAR:</span>'+
+    chk('faltantes','Faltantes','var(--red)')+
+    chk('conciliados','Conciliados','var(--green)')+
+    chk('sobrantes','Sobrantes','var(--amber)')+
+    '</div>';
+}
+function renderConciliacion(){
+  const c=state.visita.conciliacion;
+  const hasItems=c.oracleItems.length>0;
+  return '<div class="step-header"><h2>Inventario Serializados</h2>'+
+    '<p>Carga el inventario de Oracle y registra los IMEI escaneados físicamente. La conciliación se calcula sola.</p></div>'+
+    '<div class="card">'+
+    '<div class="card-title">1. INVENTARIO SEGÚN ORACLE <span class="chip amber" id="oracleCnt">'+c.oracleItems.length+' renglones</span></div>'+
+    '<div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:12px">'+
+    '<button class="btn btn-primary" onclick="document.getElementById(\'oracleFile\').click()">📁 Cargar archivo de Oracle (.xlsx)</button>'+
+    '<input type="file" id="oracleFile" accept=".xlsx,.xls" onchange="loadOracleFile(event)" style="display:none"/>'+
+    '<span style="font-size:12px;color:var(--ink-soft)">Lee las columnas por su nombre, sin importar el orden del archivo.</span>'+
+    '</div>'+
+    '<div style="font-size:12px;color:var(--ink-soft);margin-bottom:6px">O pega filas separadas por tabulador (IMEI, Estatus, Artículo, Localizador, Nombre Localizador, SKU).</div>'+
+    '<textarea class="paste-area" id="oraclePaste" placeholder="Pega aquí filas copiadas de Excel/Oracle…"></textarea>'+
+    '<div id="oracleControls" style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;align-items:center">'+
+    '<button class="btn btn-primary btn-sm" onclick="loadOraclePaste()">Cargar filas pegadas</button>'+
+    renderConcilControls(hasItems)+
+    '</div>'+
+    '<div id="oracleTable">'+renderOracleTable()+'</div>'+
+    '</div>'+
+    '<div class="card">'+
+    '<div class="card-title">2. IMEI ESCANEADOS EN TIENDA <span class="chip amber" id="escCnt">'+c.escaneados.length+'</span></div>'+
+    '<div class="imei-input-row">'+
+    '<input id="imeiInput" placeholder="Escanea o escribe IMEI y presiona Enter" onkeydown="if(event.key===\'Enter\')addImei()"/>'+
+    '<button class="btn" onclick="addImei()">Agregar</button>'+
+    '</div>'+
+    '<div id="imeiList">'+renderImeiList()+'</div>'+
+    '</div>'+
+    '<div class="card"><div class="card-title">RESULTADO</div>'+
+    '<div class="result-grid" id="concilResult">'+renderConcilResult()+'</div>'+
+    '</div>';
+}
+function loadOracleFile(evt){
+  const f=evt.target.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=e=>{
+    try{
+      const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const raw=XLSX.utils.sheet_to_json(ws,{header:1,defval:'',raw:true});
+
+      // Buscar fila de encabezados: contiene IMMEI o IMEI o SERIAL (tolera doble M)
+      let headerIdx=-1;
+      for(let i=0;i<Math.min(raw.length,15);i++){
+        const row=raw[i].map(c=>String(c||'').toLowerCase().replace(/\s/g,''));
+        if(row.some(c=>c==='immei'||c==='imei'||c.includes('serial'))){headerIdx=i;break;}
+      }
+      if(headerIdx===-1){toast('No se encontró la columna IMMEI/IMEI en el archivo.');return;}
+
+      const headers=raw[headerIdx].map(c=>String(c||'').trim());
+      const rows=raw.slice(headerIdx+1)
+        .filter(row=>{
+          // Omitir filas vacías o "Fin de reporte"
+          const first=String(row[0]||'').toLowerCase().trim();
+          return first&&!first.includes('fin de reporte')&&!first.includes('fin del reporte');
+        })
+        .map(row=>{
+          const obj={};
+          headers.forEach((h,i)=>{obj[h]=row[i]!==undefined?String(row[i]).trim():'';});
+          return obj;
+        });
+
+      parseOracleRows(rows);
+    }catch(err){
+      console.error(err);
+      toast('Error al leer el archivo: '+err.message);
+    }
+  };
+  r.readAsArrayBuffer(f);
+}
 function loadOraclePaste(){const raw=document.getElementById('oraclePaste').value.trim();if(!raw)return;parseOracleRows(raw.split('\n').map(l=>{const[imei,estatus,articulo,localizador,nombreLoc,sku]=l.split('\t');return{IMEI:imei,Estatus:estatus,'Artículo':articulo,Localizador:localizador,'Nombre Localizador':nombreLoc,SKU:sku};}));}
-function parseOracleRows(rows){const fc=(row,ns)=>{for(const n of ns){const v=row[n];if(v!==undefined)return String(v).trim();}return '';};state.visita.conciliacion.oracleItems=rows.map(r=>({imei:fc(r,['IMEI','imei','IMEI/Serial','Serial']),estatus:fc(r,['Estatus','Status']),articulo:fc(r,['Artículo','Articulo','Item']),localizador:fc(r,['Localizador']),sku:fc(r,['SKU','sku'])})).filter(r=>r.imei);autoSave();recalcConciliacion();toast(`${state.visita.conciliacion.oracleItems.length} IMEIs cargados`);}
+function parseOracleRows(rows){
+  const norm=s=>String(s||'').toLowerCase().replace(/[áéíóúäëïöü]/g,c=>'aeiouaeiou'[' áéíóúäëïöü'.indexOf(c)]||c).replace(/\s+/g,'');
+  const fc=(row,keywords)=>{
+    const keys=Object.keys(row);
+    for(const kw of keywords){
+      // busca coincidencia exacta primero, luego parcial
+      const k=keys.find(k=>norm(k)===kw)||keys.find(k=>norm(k).includes(kw));
+      if(k&&row[k]!==undefined&&row[k]!=='')return String(row[k]).trim();
+    }
+    return '';
+  };
+  state.visita.conciliacion.oracleItems=rows
+    .map(r=>({
+      imei:             fc(r,['immei','imei','serial']),
+      estatus:          fc(r,['estatus','status','estado']),
+      articulo:         fc(r,['articulo','article','item','descripcion']),
+      localizador:      fc(r,['localizador','locali']),
+      nombreLocalizador:fc(r,['nombredelocalizador','nombrelocalizador','nombre']),
+      sku:              fc(r,['sku'])
+    }))
+    .filter(r=>r.imei);
+  autoSave();recalcConciliacion();
+  toast(`${state.visita.conciliacion.oracleItems.length} IMEIs cargados`);
+}
 function addImei(){const inp=document.getElementById('imeiInput');const val=inp.value.trim();if(!val)return;if(!state.visita.conciliacion.escaneados.includes(val))state.visita.conciliacion.escaneados.push(val);inp.value='';autoSave();recalcConciliacion();}
 function removeImei(imei){state.visita.conciliacion.escaneados=state.visita.conciliacion.escaneados.filter(i=>i!==imei);autoSave();recalcConciliacion();}
 function renderImeiList(){const esc=state.visita.conciliacion.escaneados,oracle=state.visita.conciliacion.oracleItems.map(i=>i.imei);if(!esc.length)return'<div style="color:var(--ink-soft);font-size:13px;padding:8px">Aún no se ha escaneado ningún IMEI</div>';return`<div class="imei-list">${esc.map(imei=>{const m=oracle.includes(imei);return`<div class="imei-row"><span>${imei}</span><div style="display:flex;align-items:center;gap:6px"><span class="chip ${m?'green':'red'}">${m?'Conciliado':'No en Oracle'}</span><button class="icon-btn" onclick="removeImei('${imei}')">✕</button></div></div>`;}).join('')}</div>`;}
 function renderConcilResult(){const c=state.visita.conciliacion,oI=c.oracleItems.map(i=>i.imei),eI=c.escaneados;const con=eI.filter(i=>oI.includes(i)).length,falt=oI.filter(i=>!eI.includes(i)).length,sob=eI.filter(i=>!oI.includes(i)).length;return`<div class="result-box green"><div class="val">${con}</div><div class="lbl">CONCILIADOS</div></div><div class="result-box red"><div class="val">${falt}</div><div class="lbl">FALTANTES</div></div><div class="result-box amber"><div class="val">${sob}</div><div class="lbl">SOBRANTES</div></div>`;}
-function recalcConciliacion(){setText('oracleCnt',state.visita.conciliacion.oracleItems.length+' renglones');setText('escCnt',state.visita.conciliacion.escaneados.length);const il=document.getElementById('imeiList');if(il)il.innerHTML=renderImeiList();const cr=document.getElementById('concilResult');if(cr)cr.innerHTML=renderConcilResult();}
+function recalcConciliacion(){
+  const hasItems=state.visita.conciliacion.oracleItems.length>0;
+  setText('oracleCnt',state.visita.conciliacion.oracleItems.length+' renglones');
+  setText('escCnt',state.visita.conciliacion.escaneados.length);
+  // Actualizar controles (Vaciar lista + checkboxes filtro)
+  const oc=document.getElementById('oracleControls');
+  if(oc){
+    oc.innerHTML='<button class="btn btn-primary btn-sm" onclick="loadOraclePaste()">Cargar filas pegadas</button>'+
+      renderConcilControls(hasItems);
+  }
+  const il=document.getElementById('imeiList');if(il)il.innerHTML=renderImeiList();
+  const cr=document.getElementById('concilResult');if(cr)cr.innerHTML=renderConcilResult();
+  const ot=document.getElementById('oracleTable');if(ot)ot.innerHTML=renderOracleTable();
+}
 
 /* ---- STEP 4: ACCESORIOS ---- */
 function renderAcc(){
@@ -1420,7 +1731,7 @@ function generarPDF(){
   title('ARQUEO DE CAJA');
   const a=v.arqueo;
   const totB=[1000,500,200,100,50,20].reduce((s,d)=>s+(parseFloat(a.billetes[d])||0)*d,0);
-  const totM=[100,20,10,5,2,1].reduce((s,d)=>s+(parseFloat(a.monedas[d])||0)*d,0);
+  const totM=[20,10,5,2,1].reduce((s,d)=>s+(parseFloat(a.monedas[d])||0)*d,0);
   const ef=totB+totM, vou=parseFloat(a.vouchers)||0, tot=ef+vou;
   const ing=parseFloat(a.ingresosReporte)||0, dif=tot-ing;
   row('Total Efectivo (Billetes + Monedas)',fmt(ef));
@@ -1432,7 +1743,7 @@ function generarPDF(){
   y+=4;doc.setFontSize(8);doc.setFont(undefined,'bold');doc.text('Detalle Billetes:',M,y);y+=5;
   [[1000,'$1,000'],[500,'$500'],[200,'$200'],[100,'$100'],[50,'$50'],[20,'$20']].forEach(([d,l])=>{const c=parseFloat(a.billetes[d])||0;if(c>0){checkY(5);doc.setFont(undefined,'normal');doc.text(`  ${l} × ${c} = ${fmt(c*d)}`,M,y);y+=4.5;}});
   y+=2;doc.setFont(undefined,'bold');doc.text('Detalle Monedas:',M,y);y+=5;
-  [[100,'$100'],[20,'$20'],[10,'$10'],[5,'$5'],[2,'$2'],[1,'$1']].forEach(([d,l])=>{const c=parseFloat(a.monedas[d])||0;if(c>0){checkY(5);doc.setFont(undefined,'normal');doc.text(`  ${l} × ${c} = ${fmt(c*d)}`,M,y);y+=4.5;}});
+  [[20,'$20'],[10,'$10'],[5,'$5'],[2,'$2'],[1,'$1']].forEach(([d,l])=>{const c=parseFloat(a.monedas[d])||0;if(c>0){checkY(5);doc.setFont(undefined,'normal');doc.text(`  ${l} × ${c} = ${fmt(c*d)}`,M,y);y+=4.5;}});
   y+=4;title('CONCILIACIÓN DE INVENTARIO');
   const oI=v.conciliacion.oracleItems.map(i=>i.imei),eI=v.conciliacion.escaneados;
   row('IMEIs en Oracle',oI.length);row('IMEIs escaneados',eI.length);
@@ -1619,11 +1930,56 @@ async function guardarNuevaPass() {
 }
 
 /* ============================================================
+   ADMIN: GESTIÓN DE CONTRASEÑAS (solo maestro)
+   ============================================================ */
+function openAdminPassModal(){
+  const list=document.getElementById('adminUserList');
+  list.innerHTML=Object.entries(USERS)
+    .filter(([u])=>u!==state.usuario)
+    .map(([u,data])=>`
+      <div style="border:1px solid var(--line);border-radius:var(--radius-sm);padding:14px 16px;margin-bottom:10px;background:var(--surface-2)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <div>
+            <div style="font-weight:700;font-size:13px;color:var(--ink)">${data.nombre}</div>
+            <div style="font-size:11px;color:var(--ink-soft);letter-spacing:.03em">${u} · <span style="text-transform:capitalize">${data.rol}</span></div>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input type="password" id="adminPass_${u}" placeholder="Nueva contraseña (mín. 6 caracteres)"
+            style="flex:1;padding:7px 10px;border:1.5px solid var(--line);border-radius:var(--radius-xs);font-size:13px;outline:none;font-family:inherit"/>
+          <button class="btn btn-primary btn-sm" onclick="aplicarPassAdmin('${u}')">Aplicar</button>
+        </div>
+        <div id="adminErr_${u}" style="font-size:12px;color:var(--red);margin-top:5px;display:none"></div>
+      </div>
+    `).join('');
+  document.getElementById('adminPassModal').classList.remove('hidden');
+}
+function closeAdminPassModal(){ document.getElementById('adminPassModal').classList.add('hidden'); }
+
+async function aplicarPassAdmin(usuario){
+  const inp=document.getElementById('adminPass_'+usuario);
+  const errEl=document.getElementById('adminErr_'+usuario);
+  const nueva=inp?inp.value.trim():'';
+  errEl.style.display='none';
+  if(nueva.length<6){ errEl.textContent='Mínimo 6 caracteres.'; errEl.style.display='block'; return; }
+  const hash=await sha256(nueva);
+  guardarPerfil(usuario,{pass:hash});
+  if(USERS[usuario]) USERS[usuario].pass=hash;
+  inp.value='';
+  inp.style.borderColor='var(--green)';
+  setTimeout(()=>{ inp.style.borderColor=''; },1800);
+  toast('Contraseña de '+USERS[usuario].nombre.split(' ')[0]+' actualizada');
+}
+
+/* ============================================================
    OVERRIDE afterLogin para incluir perfil
    ============================================================ */
 function afterLogin() {
   const u = USERS[state.usuario];
   document.getElementById('topbarActions').style.display = 'flex';
+  // Mostrar opción admin solo para maestro
+  const adminBtn=document.getElementById('adminPassBtn');
+  if(adminBtn) adminBtn.style.display=(u.rol==='maestro'?'':'none');
   updateTopbarProfile();
   hideAll();
   if (u.rol === 'maestro') showDashboard(); else showHome();
