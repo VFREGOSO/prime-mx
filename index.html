@@ -191,6 +191,27 @@ input,select,textarea{font-family:inherit;font-size:14px}
 .chip.purple{background:var(--purple-bg);color:var(--purple)}
 .chip.blue{background:var(--blue-bg);color:var(--blue)}
 
+/* === CALENDARIO REGIONAL === */
+.cal-wrap{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);margin-bottom:20px;overflow:hidden}
+.cal-head{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--line);background:var(--brand-grad)}
+.cal-head-title{font-size:15px;font-weight:700;color:#fff;letter-spacing:-.01em}
+.cal-nav{background:rgba(255,255,255,.15);border:none;color:#fff;width:30px;height:30px;border-radius:50%;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;transition:background .15s}
+.cal-nav:hover{background:rgba(255,255,255,.3)}
+.cal-dow{display:grid;grid-template-columns:repeat(7,1fr);background:var(--surface-2);border-bottom:1px solid var(--line)}
+.cal-dow span{text-align:center;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-muted);padding:8px 0}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr)}
+.cal-cell{min-height:72px;border-right:1px solid var(--line);border-bottom:1px solid var(--line);padding:5px 6px;position:relative}
+.cal-cell:nth-child(7n){border-right:none}
+.cal-cell.other-month{background:var(--surface-2)}
+.cal-cell.today{background:#fff8f0}
+.cal-cell.today .cal-day-num{color:var(--orange);font-weight:800}
+.cal-day-num{font-size:12px;font-weight:600;color:var(--ink-soft);margin-bottom:3px}
+.cal-chip{display:block;font-size:10px;font-weight:700;padding:3px 6px;border-radius:5px;margin-bottom:2px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:opacity .15s}
+.cal-chip:hover{opacity:.8}
+.cal-chip.en-proceso{background:#fef3c7;color:#92400e;border:1px solid #fcd34d}
+.cal-chip.concluida{background:#d1fae5;color:#065f46;border:1px solid #6ee7b7}
+.cal-chip.agendada{background:#dbeafe;color:#1e40af;border:1px solid #93c5fd}
+.cal-chip.vencida{background:#fee2e2;color:#991b1b;border:1px solid #fca5a5}
 /* === DATA TABLE === */
 .data-table{width:100%;border-collapse:collapse;font-size:13px;font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
 .data-table th{text-align:left;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft);padding:9px 13px;border-bottom:1px solid var(--line);background:var(--surface-2)}
@@ -267,7 +288,7 @@ input,select,textarea{font-family:inherit;font-size:14px}
 <body>
 
 <div class="topbar">
-  <div class="brand">
+  <div class="brand" onclick="state.usuario&&(USERS[state.usuario]?.rol==='maestro'?showMaestroHome():showHome())" style="cursor:pointer">
     <div>
       <div class="brand-name">PR<span style="color:#5b9bd5">I</span>ME <span style="color:rgba(255,255,255,.5);font-weight:500;font-size:13px">MX</span></div>
       <div class="brand-sub">Visitas de Supervisión</div>
@@ -317,11 +338,70 @@ input,select,textarea{font-family:inherit;font-size:14px}
 </div>
 
 <div class="home hidden" id="homeScreen">
-  <div class="home-head">
-    <h2>Mis visitas de supervisión</h2>
+  <div class="home-head" style="margin-bottom:4px">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:4px">
+      <h2>Mis visitas de supervisión</h2>
+      <button onclick="crearVisita()" title="Nueva visita" style="width:36px;height:36px;border-radius:50%;background:var(--orange);border:none;color:#fff;font-size:22px;font-weight:300;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(244,121,32,.45);transition:background .15s,transform .1s;flex-shrink:0" onmouseover="this.style.background='var(--orange-dark)'" onmouseout="this.style.background='var(--orange)'" onmousedown="this.style.transform='scale(.93)'" onmouseup="this.style.transform='scale(1)'">+</button>
+    </div>
+    <p class="home-note" style="margin:0;display:flex;align-items:center;gap:6px"><span style="color:var(--green);font-size:13px">●</span> Datos guardados localmente — nada se envía a internet.</p>
   </div>
-  <p class="home-note" style="display:flex;align-items:center;gap:6px"><span style="color:var(--green);font-size:15px">●</span> Datos guardados localmente — nada se envía a internet.</p>
+  <div id="calContainer" style="margin-bottom:8px"></div>
+  <div id="homeSummary" style="margin-bottom:20px"></div>
   <div class="home-grid" id="homeGrid"></div>
+</div>
+
+<!-- HOME MAESTRO -->
+<div class="home hidden" id="maestroHomeScreen">
+  <div class="home-head" style="margin-bottom:16px">
+    <div style="display:flex;align-items:center;justify-content:space-between">
+      <div style="display:flex;align-items:center;gap:12px">
+        <h2>Visitas del equipo</h2>
+        <button onclick="abrirAgendarModal()" title="Agendar visita" style="width:36px;height:36px;border-radius:50%;background:var(--orange);border:none;color:#fff;font-size:22px;font-weight:300;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(244,121,32,.45);transition:background .15s,transform .1s;flex-shrink:0" onmouseover="this.style.background='var(--orange-dark)'" onmouseout="this.style.background='var(--orange)'" onmousedown="this.style.transform='scale(.93)'" onmouseup="this.style.transform='scale(1)'">+</button>
+      </div>
+      <button class="btn btn-sm" onclick="showDashboard()" style="display:flex;align-items:center;gap:6px;font-size:13px">
+        <span style="font-size:15px">📊</span> Ver Dashboard
+      </button>
+    </div>
+    <p class="home-note" style="margin:4px 0 0;display:flex;align-items:center;gap:6px"><span style="color:var(--green);font-size:13px">●</span> Datos guardados localmente — nada se envía a internet.</p>
+  </div>
+  <div id="maestroCalContainer" style="margin-bottom:8px"></div>
+  <div id="maestroPerformance" style="margin-top:8px"></div>
+</div>
+
+<!-- Modal: Agendar visita (maestro) -->
+<div class="modal-overlay hidden" id="agendarModal" onclick="if(event.target===this)closeAgendarModal()">
+  <div class="modal-box" style="max-width:480px">
+    <div class="modal-head">
+      <h3>Agendar visita</h3>
+      <button class="modal-close" onclick="closeAgendarModal()">✕</button>
+    </div>
+    <div class="modal-body" style="display:flex;flex-direction:column;gap:16px">
+      <div class="field">
+        <label>Regional <span style="color:var(--red)">*</span></label>
+        <select id="agendarRegional" style="width:100%" onchange="onAgendarRegionalChange(this.value)">
+          <option value="">— Selecciona un regional —</option>
+        </select>
+      </div>
+      <div class="field" id="agendarTiendaWrap" style="display:none">
+        <label>Tienda <span style="color:var(--red)">*</span></label>
+        <select id="agendarTienda" style="width:100%">
+          <option value="">— Selecciona una tienda —</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Fecha de la visita <span style="color:var(--red)">*</span></label>
+        <input id="agendarFecha" type="date"/>
+      </div>
+      <div class="field">
+        <label>Notas (opcional)</label>
+        <textarea id="agendarNotas" rows="2" placeholder="Instrucciones, objetivos u observaciones..." style="resize:vertical"></textarea>
+      </div>
+      <div style="display:flex;gap:10px;justify-content:flex-end">
+        <button class="btn" onclick="closeAgendarModal()">Cancelar</button>
+        <button class="btn btn-primary" onclick="submitAgendarVisita()">Agendar</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <div class="dashboard hidden" id="dashboardScreen">
@@ -343,8 +423,8 @@ input,select,textarea{font-family:inherit;font-size:14px}
     <div class="footer-nav">
       <div class="save-note"><span class="save-dot"></span> Guardado automáticamente</div>
       <div class="nav-btns">
-        <button class="btn" id="btnPrev" onclick="goStep(state.step-1)">← Anterior</button>
-        <button class="btn btn-primary" id="btnNext" onclick="goStep(state.step+1)">Siguiente →</button>
+        <button class="btn" id="btnCancelarVisita" style="display:none;border-color:var(--red);color:var(--red)" onclick="cancelarVisitaActual()">✕ Cancelar visita</button>
+        <button class="btn btn-primary" id="btnIniciar" style="display:none" onclick="iniciarVisita()">🚀 Iniciar Visita</button>
       </div>
     </div>
   </div>
@@ -512,6 +592,8 @@ const STORAGE_KEY = 'prime_supervisiones_v1';
 const AUTH_KEY    = 'prime_supervision_auth';
 let state = { visita:null, step:0, usuario:null };
 let concilFiltro = { faltantes:true, conciliados:true, sobrantes:true };
+const _now=new Date();
+let calMes = { year:_now.getFullYear(), month:_now.getMonth() };
 
 /* ============================================================
    MODELO DE DATOS
@@ -525,20 +607,32 @@ function getSemana() {
   const f=d=>`${d.getDate()} ${['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'][d.getMonth()]}`;
   return `Semana ${wk} (${f(ini)}–${f(fin)})`;
 }
-function hoy() { return new Date().toISOString().slice(0,10); }
+function hoy() { const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+// Devuelve "Primer Nombre + Primer Apellido" a partir de nombre completo
+// 3 palabras → partes[0]+[1]; 4+ palabras → partes[0]+[2] (salta segundo nombre)
+function nombreCorto(nombre){
+  if(!nombre)return'';
+  const p=nombre.trim().split(/\s+/);
+  if(p.length<=2)return p.join(' ');
+  if(p.length===3)return p[0]+' '+p[1];
+  return p[0]+' '+p[2];
+}
 
 function nuevaVisita() {
   return {
     id: Date.now().toString(),
     creadoPor: state.usuario,
-    nombreRegional: USERS[state.usuario]?.nombre || state.usuario,
+    asignadoA: null,
+    agendada: false,
+    notas: '',
+    nombreRegional: nombreCorto(USERS[state.usuario]?.nombre || state.usuario),
     creado: new Date().toISOString(),
     actualizado: new Date().toISOString(),
     general: {
       tienda: '',
       fecha: hoy(),
       gerenteTienda: '',
-      gerenteRegional: USERS[state.usuario]?.nombre || ''
+      gerenteRegional: nombreCorto(USERS[state.usuario]?.nombre || '')
     },
     arqueo: {
       billetes: { 1000:'',500:'',200:'',100:'',50:'',20:'' },
@@ -547,12 +641,18 @@ function nuevaVisita() {
       ingresosReporte: ''
     },
     depositos: { modoCaptura:'', fechaInicio:'', fechaFin:'', recoleccionValores:'', filas:[] },
-    cancelaciones: { registros:[] },
+    cancelaciones: { registros:[], archivoCargado:false },
     conciliacion: { oracleItems:[], escaneados:[] },
     acc: { items:[] },
     diferencias: { notas:'' },
     cantados: { semana:getSemana(), registros:[] },
-    _lastStep: 0
+    _lastStep: 0,
+    iniciada: false,
+    finalizada: false,
+    seccionesFinalizadas: {},
+    inicioTimestamp: null,
+    finTimestamp: null,
+    duracionMin: null
   };
 }
 
@@ -563,11 +663,13 @@ function cargarTodasLasVisitas() { try{return JSON.parse(localStorage.getItem(ST
 function cargarVisitas() {
   const todas=cargarTodasLasVisitas();
   if(USERS[state.usuario]?.rol==='maestro') return todas;
-  return todas.filter(v=>v.creadoPor===state.usuario);
+  // Incluye visitas propias + visitas agendadas por el maestro para este regional
+  return todas.filter(v=>v.creadoPor===state.usuario||(v.agendada&&v.asignadoA===state.usuario));
 }
 function guardarVisitas(visitas) {
   if(USERS[state.usuario]?.rol==='maestro'){localStorage.setItem(STORAGE_KEY,JSON.stringify(visitas));return;}
-  const otras=cargarTodasLasVisitas().filter(v=>v.creadoPor!==state.usuario);
+  // Excluye visitas propias Y visitas agendadas asignadas a este regional (para actualizar ambas)
+  const otras=cargarTodasLasVisitas().filter(v=>v.creadoPor!==state.usuario&&!(v.agendada&&v.asignadoA===state.usuario));
   localStorage.setItem(STORAGE_KEY,JSON.stringify([...otras,...visitas]));
 }
 function guardarVisitaActual() {
@@ -610,23 +712,165 @@ function checkAuth() {
   else document.getElementById('loginScreen').classList.remove('hidden');
 }
 function hideAll() {
-  ['loginScreen','homeScreen','dashboardScreen','wizardScreen'].forEach(id=>document.getElementById(id).classList.add('hidden'));
+  ['loginScreen','homeScreen','maestroHomeScreen','dashboardScreen','wizardScreen'].forEach(id=>document.getElementById(id).classList.add('hidden'));
 }
 
 /* ============================================================
    HOME REGIONAL
    ============================================================ */
 function showHome() { hideAll(); document.getElementById('homeScreen').classList.remove('hidden'); renderHome(); }
+
+function navCalMes(delta){
+  calMes.month+=delta;
+  if(calMes.month>11){calMes.month=0;calMes.year++;}
+  if(calMes.month<0){calMes.month=11;calMes.year--;}
+  const el=document.getElementById('calContainer');
+  if(el) el.innerHTML=renderCalendario();
+  renderHomeSummary();
+}
+
+function renderCalendario(){
+  // Muestra visitas iniciadas + visitas agendadas para el regional actual
+  const visitas=cargarVisitas().filter(v=>(v.iniciada||(v.agendada&&!v.iniciada))&&v.general.fecha);
+  const {year,month}=calMes;
+  const hoy=new Date(); const hoyStr=`${hoy.getFullYear()}-${String(hoy.getMonth()+1).padStart(2,'0')}-${String(hoy.getDate()).padStart(2,'0')}`;
+
+  // Mapa fecha -> visitas del mes
+  const mapa={};
+  visitas.forEach(v=>{
+    const f=v.general.fecha;
+    const d=new Date(f+'T12:00:00');
+    if(d.getFullYear()===year&&d.getMonth()===month){
+      if(!mapa[f])mapa[f]=[];
+      mapa[f].push(v);
+    }
+  });
+
+  const nombreMes=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][month];
+  const dias=['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
+
+  // Primer día del mes (0=Dom → ajustar a Lun=0)
+  const primerDia=new Date(year,month,1).getDay(); // 0=Dom
+  const offset=(primerDia===0)?6:primerDia-1;
+  const totalDias=new Date(year,month+1,0).getDate();
+  const prevDias=new Date(year,month,0).getDate();
+
+  let cells='';
+  // Días del mes anterior
+  for(let i=offset-1;i>=0;i--){
+    const d=prevDias-i;
+    cells+=`<div class="cal-cell other-month"><div class="cal-day-num">${d}</div></div>`;
+  }
+  // Días del mes actual
+  for(let d=1;d<=totalDias;d++){
+    const fechaStr=`${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const esHoy=fechaStr===hoyStr;
+    const vsHoy=mapa[fechaStr]||[];
+    const chips=vsHoy.map(v=>{
+      if(v.agendada&&!v.iniciada){
+        const vencida=fechaStr<hoyStr;
+        const esHoyV=fechaStr===hoyStr;
+        const cls=vencida?'vencida':'agendada';
+        const icono=vencida?'⚠️':'📅';
+        const nombre=(v.general.tienda||'Visita').replace('PRM TDA ','');
+        const clickFn=vencida?`clickChipVencida(event)`:esHoyV?`abrirVisita('${v.id}')`:`clickChipFutura(event)`;
+        return `<span class="cal-chip ${cls}" onclick="${clickFn}" data-id="${v.id}" style="cursor:pointer" title="${vencida?'Vencida':'Agendada'}: ${nombre}">${icono} ${nombre}</span>`;
+      }
+      const concluida=!!v.finalizada;
+      const enProceso=v.iniciada&&!v.finalizada;
+      const cls=concluida?'concluida':enProceso?'en-proceso':'';
+      const icono=concluida?'✓':'●';
+      const nombre=(v.general.tienda||'Visita').replace('PRM TDA ','');
+      const dur=concluida&&v.duracionMin!=null?` · ${fmtDuracion(v.duracionMin)}`:'';
+      return `<span class="cal-chip ${cls}" onclick="abrirVisita('${v.id}')" title="${v.general.tienda||''}">${icono} ${nombre}${dur}</span>`;
+    }).join('');
+    cells+=`<div class="cal-cell${esHoy?' today':''}"><div class="cal-day-num">${d}</div>${chips}</div>`;
+  }
+  const total=offset+totalDias;
+  const resto=total%7===0?0:7-(total%7);
+  for(let d=1;d<=resto;d++){
+    cells+=`<div class="cal-cell other-month"><div class="cal-day-num">${d}</div></div>`;
+  }
+
+  return `<div class="cal-wrap">
+    <div class="cal-head">
+      <button class="cal-nav" onclick="navCalMes(-1)">‹</button>
+      <span class="cal-head-title">${nombreMes} ${year}</span>
+      <button class="cal-nav" onclick="navCalMes(1)">›</button>
+    </div>
+    <div class="cal-dow">${dias.map(d=>`<span>${d}</span>`).join('')}</div>
+    <div class="cal-grid">${cells}</div>
+    <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;padding:10px 16px;border-top:1px solid var(--line);background:var(--surface-2)">
+      <span style="display:flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:#1e40af"><span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:#dbeafe;border:1px solid #93c5fd"></span>Agendada</span>
+      <span style="display:flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:#991b1b"><span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:#fee2e2;border:1px solid #fca5a5"></span>Vencida</span>
+      <span style="display:flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:#92400e"><span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:#fef3c7;border:1px solid #fcd34d"></span>En proceso</span>
+      <span style="display:flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:#065f46"><span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:#d1fae5;border:1px solid #6ee7b7"></span>Concluida</span>
+    </div>
+  </div>`;
+}
+
+function renderHomeSummary(){
+  const el=document.getElementById('homeSummary');
+  if(!el)return;
+  const {year,month}=calMes;
+  const hoyStr=hoy();
+  const visitas=cargarVisitas().filter(v=>{
+    const f=v.general.fecha;
+    if(!f)return false;
+    const d=new Date(f+'T12:00:00');
+    return d.getFullYear()===year&&d.getMonth()===month;
+  });
+  const agendadas  =visitas.filter(v=>v.agendada&&!v.iniciada&&v.general.fecha>=hoyStr).length;
+  const vencidas   =visitas.filter(v=>v.agendada&&!v.iniciada&&v.general.fecha<hoyStr).length;
+  const enProceso  =visitas.filter(v=>v.iniciada&&!v.finalizada).length;
+  const concluidas =visitas.filter(v=>v.finalizada).length;
+  const tiempos    =visitas.filter(v=>v.finalizada&&v.duracionMin!=null).map(v=>v.duracionMin);
+  const promedio   =tiempos.length?Math.round(tiempos.reduce((a,b)=>a+b,0)/tiempos.length):null;
+  const nombreMes  =['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][month];
+
+  el.innerHTML=`
+    <div style="background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden">
+      <div style="padding:10px 16px;background:var(--surface-2);border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between">
+        <span style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft)">Resumen · ${nombreMes} ${year}</span>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:0">
+        ${statBox('Agendadas','#1e40af','#eff6ff',agendadas,'📅')}
+        ${statBox('Vencidas','#991b1b','#fff1f2',vencidas,'⚠️')}
+        ${statBox('En proceso','#92400e','#fffbeb',enProceso,'●')}
+        ${statBox('Concluidas','#065f46','#f0fdf4',concluidas,'✓')}
+        ${statBoxText('Tiempo promedio','#374151','#f9fafb',promedio!=null?fmtDuracion(promedio):'—','⏱')}
+      </div>
+    </div>`;
+}
+function statBox(label,color,bg,val,icon){
+  return `<div style="padding:14px 12px;text-align:center;border-right:1px solid var(--line);background:${bg}">
+    <div style="font-size:22px;font-weight:800;color:${color};line-height:1">${val}</div>
+    <div style="font-size:11px;color:${color};opacity:.75;margin-top:4px;font-weight:600">${icon} ${label}</div>
+  </div>`;
+}
+function statBoxText(label,color,bg,val,icon){
+  return `<div style="padding:14px 12px;text-align:center;background:${bg}">
+    <div style="font-size:16px;font-weight:800;color:${color};line-height:1.2">${val}</div>
+    <div style="font-size:11px;color:${color};opacity:.75;margin-top:4px;font-weight:600">${icon} ${label}</div>
+  </div>`;
+}
+
 function renderHome() {
   const visitas=cargarVisitas(), grid=document.getElementById('homeGrid');
-  let html=`<button class="new-card" onclick="crearVisita()"><span class="plus">+</span>Nueva visita</button>`;
-  visitas.slice().reverse().forEach(v=>{
+  // Calendario al inicio
+  const calWrap=document.getElementById('calContainer');
+  if(calWrap) calWrap.innerHTML=renderCalendario();
+  renderHomeSummary();
+  // Tarjetas — solo mostrar visitas iniciadas
+  let html='';
+  visitas.filter(v=>v.iniciada).slice().reverse().forEach(v=>{
     const pct=calcPct(v);
     const fecha=v.general.fecha?new Date(v.general.fecha+'T12:00:00').toLocaleDateString('es-MX',{day:'2-digit',month:'2-digit',year:'numeric'}):'—';
+    const esEliminable=puedeEliminarRegional(v);
     html+=`<div class="visita-card" onclick="abrirVisita('${v.id}')">
       <div class="card-actions">
-        <button class="icon-btn" title="Duplicar" onclick="event.stopPropagation();duplicarVisita('${v.id}')">⧉</button>
-        <button class="icon-btn" title="Eliminar" onclick="event.stopPropagation();eliminarVisita('${v.id}')">✕</button>
+        ${!v.agendada?`<button class="icon-btn" title="Duplicar" onclick="event.stopPropagation();duplicarVisita('${v.id}')">⧉</button>`:''}
+        ${esEliminable?`<button class="icon-btn" title="Eliminar" onclick="event.stopPropagation();eliminarVisita('${v.id}')">✕</button>`:''}
       </div>
       <div class="store">${v.general.tienda||'Tienda sin nombre'}</div>
       <div class="meta">${fecha} · ${v.general.gerenteTienda||'Sin gerente'}</div>
@@ -648,8 +892,307 @@ function calcPct(v) {
 }
 function crearVisita(){const v=nuevaVisita();const vs=cargarVisitas();vs.push(v);guardarVisitas(vs);abrirVisita(v.id);}
 function duplicarVisita(id){const vs=cargarVisitas();const o=vs.find(v=>v.id===id);if(!o)return;const c=JSON.parse(JSON.stringify(o));c.id=Date.now().toString();c.creado=new Date().toISOString();c.actualizado=new Date().toISOString();vs.push(c);guardarVisitas(vs);renderHome();toast('Visita duplicada');}
-function eliminarVisita(id){if(!confirm('¿Eliminar esta visita? No se puede deshacer.'))return;guardarVisitas(cargarVisitas().filter(v=>v.id!==id));renderHome();}
+function puedeEliminarRegional(v){
+  // Visitas generadas por el maestro: nunca se pueden eliminar
+  if(v.agendada&&v.asignadoA===state.usuario&&v.creadoPor!==state.usuario)return false;
+  // Visitas concluidas (finalizadas): no se pueden eliminar
+  if(v.finalizada)return false;
+  // Solo las creadas por el propio regional y en proceso (o sin iniciar) se pueden eliminar
+  return v.creadoPor===state.usuario;
+}
+function motivoNoEliminar(v){
+  if(v.agendada&&v.asignadoA===state.usuario&&v.creadoPor!==state.usuario)
+    return'Las visitas generadas por tu gerente no pueden eliminarse.';
+  if(v.finalizada)
+    return'Las visitas concluidas no pueden eliminarse.';
+  return'No tienes permiso para eliminar esta visita.';
+}
+function eliminarVisita(id){
+  const v=cargarVisitas().find(x=>x.id===id);
+  if(!v)return;
+  if(!puedeEliminarRegional(v)){toast(motivoNoEliminar(v));return;}
+  if(!confirm('¿Cancelar esta visita? Se eliminará permanentemente y no se puede deshacer.'))return;
+  guardarVisitas(cargarVisitas().filter(x=>x.id!==id));
+  renderHome();
+  toast('Visita cancelada.');
+}
+function cancelarVisitaActual(){
+  // Desde el wizard: cancela la visita en proceso actual
+  const v=state.visita;
+  if(!puedeEliminarRegional(v)){toast(motivoNoEliminar(v));return;}
+  if(!confirm('¿Cancelar esta visita? Se eliminará permanentemente.'))return;
+  guardarVisitas(cargarVisitas().filter(x=>x.id!==v.id));
+  showHome();
+  toast('Visita cancelada.');
+}
+function eliminarVisitaMaestro(id,e){
+  if(e)e.stopPropagation();
+  if(!confirm('¿Eliminar esta visita?'))return;
+  const todas=cargarTodasLasVisitas();
+  localStorage.setItem(STORAGE_KEY,JSON.stringify(todas.filter(v=>v.id!==id)));
+  // Refrescar vista actual
+  const dash=document.getElementById('dashboardScreen');
+  if(dash&&!dash.classList.contains('hidden'))renderDashboard();else renderMaestroHome();
+  toast('Visita eliminada.');
+}
 function abrirVisita(id){state.visita=cargarVisitas().find(v=>v.id===id);if(!state.visita)return;state.step=state.visita._lastStep||0;hideAll();document.getElementById('wizardScreen').classList.remove('hidden');renderWizard();}
+
+/* ============================================================
+   MAESTRO HOME
+   ============================================================ */
+let calMesMaestro = (()=>{const n=new Date();return{year:n.getFullYear(),month:n.getMonth()};})();
+
+function showMaestroHome(){
+  hideAll();
+  document.getElementById('maestroHomeScreen').classList.remove('hidden');
+  renderMaestroHome();
+}
+
+function navCalMesMaestro(delta){
+  calMesMaestro.month+=delta;
+  if(calMesMaestro.month>11){calMesMaestro.month=0;calMesMaestro.year++;}
+  if(calMesMaestro.month<0){calMesMaestro.month=11;calMesMaestro.year--;}
+  const el=document.getElementById('maestroCalContainer');
+  if(el) el.innerHTML=renderCalendarioMaestro();
+  renderMaestroPerformance();
+}
+
+function renderMaestroHome(){
+  const el=document.getElementById('maestroCalContainer');
+  if(el) el.innerHTML=renderCalendarioMaestro();
+  renderMaestroPerformance();
+}
+
+function navCalMesMaestroNav(delta){
+  navCalMesMaestro(delta);
+  renderMaestroPerformance();
+}
+
+function renderMaestroPerformance(){
+  const el=document.getElementById('maestroPerformance');
+  if(!el)return;
+  const {year,month}=calMesMaestro;
+  const hoyStr=hoy();
+  const nombreMes=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][month];
+  const todas=cargarTodasLasVisitas();
+  // Filtrar al mes visible
+  const delMes=todas.filter(v=>{
+    const f=v.general.fecha;
+    if(!f)return false;
+    const d=new Date(f+'T12:00:00');
+    return d.getFullYear()===year&&d.getMonth()===month;
+  });
+  // Regionales
+  const regionales=Object.entries(USERS).filter(([,u])=>u.rol==='regional')
+    .sort((a,b)=>a[1].nombre.localeCompare(b[1].nombre,'es'));
+
+  // Stats por regional
+  const rows=regionales.map(([key,u])=>{
+    const visR=delMes.filter(v=>{
+      const rKey=(v.agendada&&v.asignadoA)?v.asignadoA:v.creadoPor;
+      return rKey===key;
+    });
+    const agendadas =visR.filter(v=>v.agendada&&!v.iniciada&&v.general.fecha>=hoyStr).length;
+    const vencidas  =visR.filter(v=>v.agendada&&!v.iniciada&&v.general.fecha<hoyStr).length;
+    const enProceso =visR.filter(v=>v.iniciada&&!v.finalizada).length;
+    const concluidas=visR.filter(v=>v.finalizada).length;
+    const tiempos   =visR.filter(v=>v.finalizada&&v.duracionMin!=null).map(v=>v.duracionMin);
+    const prom      =tiempos.length?Math.round(tiempos.reduce((a,b)=>a+b,0)/tiempos.length):null;
+    const total=agendadas+vencidas+enProceso+concluidas;
+    const cumplPct=total>0?Math.round((concluidas/total)*100):null;
+    return {key,nombre:nombreCorto(u.nombre),agendadas,vencidas,enProceso,concluidas,prom,cumplPct,total};
+  });
+
+  // Totales del equipo
+  const tAg=rows.reduce((s,r)=>s+r.agendadas,0);
+  const tVe=rows.reduce((s,r)=>s+r.vencidas,0);
+  const tEP=rows.reduce((s,r)=>s+r.enProceso,0);
+  const tCo=rows.reduce((s,r)=>s+r.concluidas,0);
+  const allTimes=delMes.filter(v=>v.finalizada&&v.duracionMin!=null).map(v=>v.duracionMin);
+  const tProm=allTimes.length?Math.round(allTimes.reduce((a,b)=>a+b,0)/allTimes.length):null;
+
+  const dot=(color,label)=>`<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;color:${color}">${label}</span>`;
+  const badge=(val,color,bg)=>`<span style="display:inline-block;min-width:22px;text-align:center;padding:2px 6px;border-radius:99px;font-size:12px;font-weight:700;background:${bg};color:${color}">${val}</span>`;
+
+  const tableRows=rows.map(r=>`
+    <tr style="border-bottom:1px solid var(--line)">
+      <td style="padding:10px 12px;font-weight:600;font-size:13px;white-space:nowrap">${r.nombre}</td>
+      <td style="padding:10px 8px;text-align:center">${r.agendadas>0?badge(r.agendadas,'#1e40af','#dbeafe'):dot('#ccc','—')}</td>
+      <td style="padding:10px 8px;text-align:center">${r.vencidas>0?badge(r.vencidas,'#991b1b','#fee2e2'):dot('#ccc','—')}</td>
+      <td style="padding:10px 8px;text-align:center">${r.enProceso>0?badge(r.enProceso,'#92400e','#fef3c7'):dot('#ccc','—')}</td>
+      <td style="padding:10px 8px;text-align:center">${r.concluidas>0?badge(r.concluidas,'#065f46','#d1fae5'):dot('#ccc','—')}</td>
+      <td style="padding:10px 8px;text-align:center;font-size:12px;color:var(--ink-soft)">${r.prom!=null?fmtDuracion(r.prom):'—'}</td>
+      <td style="padding:10px 12px;text-align:center">
+        ${r.cumplPct!=null
+          ?`<div style="display:flex;align-items:center;gap:6px"><div style="flex:1;height:5px;background:var(--bg);border-radius:99px;overflow:hidden;min-width:50px"><div style="width:${r.cumplPct}%;height:100%;background:${r.cumplPct>=80?'var(--green)':r.cumplPct>=50?'var(--amber)':'var(--red)'};border-radius:99px"></div></div><span style="font-size:11px;font-weight:700;color:var(--ink-soft);min-width:26px">${r.cumplPct}%</span></div>`
+          :`<span style="color:var(--ink-soft);font-size:12px">—</span>`}
+      </td>
+    </tr>`).join('');
+
+  el.innerHTML=`
+    <div style="background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden">
+      <div style="padding:10px 16px;background:var(--surface-2);border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+        <span style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft)">Performance del equipo · ${nombreMes} ${year}</span>
+        <div style="display:flex;gap:16px;flex-wrap:wrap">
+          ${statBox('Agendadas','#1e40af','#eff6ff',tAg,'📅')}
+          ${statBox('Vencidas','#991b1b','#fff1f2',tVe,'⚠️')}
+          ${statBox('En proceso','#92400e','#fffbeb',tEP,'●')}
+          ${statBox('Concluidas','#065f46','#f0fdf4',tCo,'✓')}
+          ${statBoxText('T. promedio','#374151','transparent',tProm!=null?fmtDuracion(tProm):'—','⏱')}
+        </div>
+      </div>
+      <div style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;font-family:inherit">
+          <thead>
+            <tr style="background:var(--surface-2);border-bottom:1px solid var(--line)">
+              <th style="padding:8px 12px;text-align:left;font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em">Regional</th>
+              <th style="padding:8px 8px;text-align:center;font-size:11px;font-weight:700;color:#1e40af;text-transform:uppercase;letter-spacing:.05em">Agend.</th>
+              <th style="padding:8px 8px;text-align:center;font-size:11px;font-weight:700;color:#991b1b;text-transform:uppercase;letter-spacing:.05em">Venc.</th>
+              <th style="padding:8px 8px;text-align:center;font-size:11px;font-weight:700;color:#92400e;text-transform:uppercase;letter-spacing:.05em">En proc.</th>
+              <th style="padding:8px 8px;text-align:center;font-size:11px;font-weight:700;color:#065f46;text-transform:uppercase;letter-spacing:.05em">Concluid.</th>
+              <th style="padding:8px 8px;text-align:center;font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em">T. prom.</th>
+              <th style="padding:8px 12px;text-align:center;font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em">Cumplimiento</th>
+            </tr>
+          </thead>
+          <tbody>${tableRows}</tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
+function renderCalendarioMaestro(){
+  // Todas las visitas: iniciadas + agendadas (no iniciadas, creadas por maestro)
+  const todas=cargarTodasLasVisitas();
+  const visitas=todas.filter(v=>(v.iniciada||v.agendada)&&v.general.fecha);
+  const {year,month}=calMesMaestro;
+  const hoy=new Date();
+  const hoyStr=`${hoy.getFullYear()}-${String(hoy.getMonth()+1).padStart(2,'0')}-${String(hoy.getDate()).padStart(2,'0')}`;
+
+  const mapa={};
+  visitas.forEach(v=>{
+    const f=v.general.fecha;
+    const d=new Date(f+'T12:00:00');
+    if(d.getFullYear()===year&&d.getMonth()===month){
+      if(!mapa[f])mapa[f]=[];
+      mapa[f].push(v);
+    }
+  });
+
+  const nombreMes=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][month];
+  const dias=['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
+  const primerDia=new Date(year,month,1).getDay();
+  const offset=(primerDia===0)?6:primerDia-1;
+  const totalDias=new Date(year,month+1,0).getDate();
+  const prevDias=new Date(year,month,0).getDate();
+
+  let cells='';
+  for(let i=offset-1;i>=0;i--){
+    cells+=`<div class="cal-cell other-month"><div class="cal-day-num">${prevDias-i}</div></div>`;
+  }
+  for(let d=1;d<=totalDias;d++){
+    const fechaStr=`${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const esHoy=fechaStr===hoyStr;
+    const vsHoy=mapa[fechaStr]||[];
+    const chips=vsHoy.map(v=>{
+      if(v.agendada&&!v.iniciada){
+        const regional=USERS[v.asignadoA]?.nombre||v.asignadoA||'Regional';
+        const _nc=nombreCorto(regional);
+        const tienda=v.general.tienda?` · ${v.general.tienda.replace('PRM TDA ','')}`:'' ;
+        const vencida=fechaStr<hoyStr;
+        const cls=vencida?'vencida':'agendada';
+        const icono=vencida?'⚠️':'📅';
+        const clickFn=vencida?`onclick="clickChipVencida(event)"`:'' ;
+        return `<span class="cal-chip ${cls}" ${clickFn} data-id="${v.id}" style="display:inline-flex;align-items:center;gap:4px" title="${vencida?'Vencida — ':'Agendada para: '}${regional}">${icono} ${_nc}${tienda}<button onclick="eliminarVisitaMaestro('${v.id}',event)" style="background:none;border:none;cursor:pointer;color:inherit;font-size:11px;line-height:1;padding:0 0 0 2px;opacity:.65;font-weight:700" title="Eliminar">×</button></span>`;
+      }
+      const concluida=!!v.finalizada;
+      const cls=concluida?'concluida':'en-proceso';
+      const icono=concluida?'✓':'●';
+      const nombre=(v.general.tienda||'Visita').replace('PRM TDA ','');
+      const regionalKey=(v.agendada&&v.asignadoA)?v.asignadoA:v.creadoPor;
+      const regional=USERS[regionalKey]?.nombre||'';
+      const nombreRegCorto=nombreCorto(regional).split(' ')[0];
+      const dur=concluida&&v.duracionMin!=null?` · ${fmtDuracion(v.duracionMin)}`:'';
+      const label=nombre+(nombreRegCorto?` (${nombreRegCorto})`:'');
+      return `<span class="cal-chip ${cls}" onclick="abrirVisita('${v.id}')" style="display:inline-flex;align-items:center;gap:4px" title="${v.general.tienda||''} — ${regional}">${icono} ${label}${dur}<button onclick="eliminarVisitaMaestro('${v.id}',event)" style="background:none;border:none;cursor:pointer;color:inherit;font-size:11px;line-height:1;padding:0 0 0 2px;opacity:.65;font-weight:700" title="Eliminar">×</button></span>`;
+    }).join('');
+    cells+=`<div class="cal-cell${esHoy?' today':''}"><div class="cal-day-num">${d}</div>${chips}</div>`;
+  }
+  const total=offset+totalDias;
+  const resto=total%7===0?0:7-(total%7);
+  for(let d=1;d<=resto;d++){
+    cells+=`<div class="cal-cell other-month"><div class="cal-day-num">${d}</div></div>`;
+  }
+
+  return `<div class="cal-wrap">
+    <div class="cal-head">
+      <button class="cal-nav" onclick="navCalMesMaestro(-1)">‹</button>
+      <span class="cal-head-title">${nombreMes} ${year}</span>
+      <button class="cal-nav" onclick="navCalMesMaestro(1)">›</button>
+    </div>
+    <div class="cal-dow">${dias.map(d=>`<span>${d}</span>`).join('')}</div>
+    <div class="cal-grid">${cells}</div>
+    <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;padding:10px 16px;border-top:1px solid var(--line);background:var(--surface-2)">
+      <span style="display:flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:#1e40af"><span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:#dbeafe;border:1px solid #93c5fd"></span>Agendada</span>
+      <span style="display:flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:#991b1b"><span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:#fee2e2;border:1px solid #fca5a5"></span>Vencida</span>
+      <span style="display:flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:#92400e"><span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:#fef3c7;border:1px solid #fcd34d"></span>En proceso</span>
+      <span style="display:flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:#065f46"><span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:#d1fae5;border:1px solid #6ee7b7"></span>Concluida</span>
+    </div>
+  </div>`;
+}
+
+/* --- Modal agendar visita (maestro) --- */
+function abrirAgendarModal(){
+  const sel=document.getElementById('agendarRegional');
+  sel.innerHTML='<option value="">— Selecciona un regional —</option>';
+  Object.entries(USERS).filter(([,u])=>u.rol==='regional')
+    .sort((a,b)=>a[1].nombre.localeCompare(b[1].nombre,'es'))
+    .forEach(([key,u])=>{ sel.innerHTML+=`<option value="${key}">${u.nombre}</option>`; });
+  const hoy=new Date();
+  const hoyISO=`${hoy.getFullYear()}-${String(hoy.getMonth()+1).padStart(2,'0')}-${String(hoy.getDate()).padStart(2,'0')}`;
+  const fechaEl=document.getElementById('agendarFecha');
+  fechaEl.value=hoyISO;
+  fechaEl.min=hoyISO;
+  document.getElementById('agendarTienda').value='';
+  document.getElementById('agendarNotas').value='';
+  document.getElementById('agendarTiendaWrap').style.display='none';
+  document.getElementById('agendarModal').classList.remove('hidden');
+}
+function onAgendarRegionalChange(key){
+  const wrap=document.getElementById('agendarTiendaWrap');
+  const sel=document.getElementById('agendarTienda');
+  const lista=TIENDAS[key]||[];
+  if(!key||lista.length===0){wrap.style.display='none';sel.value='';return;}
+  sel.innerHTML='<option value="">— Selecciona una tienda —</option>';
+  [...lista].sort((a,b)=>a.localeCompare(b,'es')).forEach(t=>{ sel.innerHTML+=`<option value="${t}">${t.replace('PRM TDA ','')}</option>`; });
+  wrap.style.display='';
+}
+function closeAgendarModal(){
+  document.getElementById('agendarModal').classList.add('hidden');
+}
+function submitAgendarVisita(){
+  const regional=document.getElementById('agendarRegional').value;
+  const fecha=document.getElementById('agendarFecha').value;
+  const tienda=document.getElementById('agendarTienda').value;
+  const notas=document.getElementById('agendarNotas').value.trim();
+  if(!regional){toast('Selecciona un regional.');return;}
+  if(!fecha){toast('Selecciona una fecha.');return;}
+  if(fecha<hoy()){toast('No puedes agendar visitas en fechas pasadas.');return;}
+  if((TIENDAS[regional]||[]).length>0&&!tienda){toast('Selecciona una tienda.');return;}
+  const v=nuevaVisita();
+  v.agendada=true;
+  v.asignadoA=regional;
+  v.creadoPor=state.usuario;
+  v.general.fecha=fecha;
+  v.general.gerenteRegional=nombreCorto(USERS[regional]?.nombre||''); // nombre del REGIONAL, no del maestro
+  if(tienda) v.general.tienda=tienda;
+  if(notas) v.notas=notas;
+  const todas=cargarTodasLasVisitas();
+  todas.push(v);
+  localStorage.setItem(STORAGE_KEY,JSON.stringify(todas));
+  closeAgendarModal();
+  renderMaestroHome();
+  toast(`Visita agendada para ${nombreCorto(USERS[regional]?.nombre||regional)}`);
+}
 
 /* ============================================================
    DASHBOARD MAESTRO
@@ -676,10 +1219,14 @@ function renderDashboard(){
     <div class="stat-box"><div class="val" style="color:var(--red)">${conBandera}</div><div class="lbl">Visitas con bandera</div></div>`;
   const grupos={};
   Object.entries(USERS).forEach(([k,u])=>{if(u.rol==='regional')grupos[k]=[];});
-  todas.forEach(v=>{if(v.creadoPor&&grupos[v.creadoPor]!==undefined)grupos[v.creadoPor].push(v);});
+  todas.forEach(v=>{
+    // Para visitas agendadas, el "dueño" es el regional asignado; si no, quien la creó
+    const owner=(v.agendada&&v.asignadoA&&grupos[v.asignadoA]!==undefined)?v.asignadoA:v.creadoPor;
+    if(owner&&grupos[owner]!==undefined)grupos[owner].push(v);
+  });
   let html='';
   Object.entries(grupos).forEach(([key,visitas])=>{
-    const nombre=USERS[key]?.nombre||key;
+    const nombre=nombreCorto(USERS[key]?.nombre||key);
     html+=`<div class="regional-section">
       <div class="regional-header"><span>${nombre}</span><span class="cnt">${visitas.length} visita${visitas.length!==1?'s':''}</span></div>`;
     if(!visitas.length){html+=`<div style="font-size:13px;color:var(--ink-soft);padding:10px 12px;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius)">Sin visitas registradas</div>`;}
@@ -719,29 +1266,73 @@ function renderDashboard(){
    WIZARD
    ============================================================ */
 function renderWizard(){renderStepNav();renderStep();}
+const SECCIONES_FINALIZABLES=['arqueo','depositos','cancelaciones','conciliacion','acc','diferencias','cantados'];
+
 function renderStepNav(){
+  // Limpiar mensajes de visita agendada de renders anteriores
+  document.querySelectorAll('.agendada-msg').forEach(el=>el.remove());
+  const v=state.visita;
+  const bloqueada=!v.iniciada;
+  const secFin=v.seccionesFinalizadas||{};
   let html='', lastParent=null;
   PASOS.forEach((p,i)=>{
-    const cls=i===state.step?'active':i<state.step?'done':'';
-    // Insert parent group header before first child
+    const bloq=bloqueada&&i>0;
+    const isDone=SECCIONES_FINALIZABLES.includes(p.key)&&!!secFin[p.key];
+    const cls=bloq?'locked':(i===state.step?'active':isDone?'done':'');
     if(p.parent && p.parent!==lastParent){
-      // check if any sibling of this group is active or done
-      const groupActive=PASOS.some((pp,ii)=>pp.parent===p.parent&&(ii===state.step||ii<state.step));
       html+=`<div class="step-group-label" style="font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.35);padding:8px 10px 3px;margin-top:4px">📦 ${p.parent}</div>`;
       lastParent=p.parent;
     }
     if(!p.parent) lastParent=null;
     const indent=p.parent?'padding-left:20px;':'';
-    html+=`<button class="step-item ${cls}" onclick="goStep(${i})" style="${indent}"><span class="step-num">${i+1}</span><span class="label-text">${p.label}</span></button>`;
+    const click=bloq?'':'onclick="goStep('+i+')"';
+    const checkMark=isDone?'<span style="margin-left:auto;font-size:10px;opacity:.9">✓</span>':'';
+    html+=`<button class="step-item ${cls}" ${click} style="${indent}${bloq?'opacity:.35;cursor:not-allowed;pointer-events:none':''}"><span class="step-num">${i+1}</span><span class="label-text">${p.label}</span>${checkMark}</button>`;
   });
   document.getElementById('stepNav').innerHTML=html;
-  document.getElementById('btnPrev').style.visibility=state.step===0?'hidden':'visible';
-  const isLast=state.step===PASOS.length-1, btn=document.getElementById('btnNext');
-  if(isLast){btn.textContent='Volver al inicio';btn.onclick=()=>USERS[state.usuario]?.rol==='maestro'?showDashboard():showHome();}
-  else{btn.textContent='Siguiente →';btn.onclick=()=>goStep(state.step+1);}
+
+  const btnIniciar=document.getElementById('btnIniciar');
+  const btnCancelar=document.getElementById('btnCancelarVisita');
+
+  // Botón cancelar: solo para visitas en proceso creadas por el propio regional
+  if(btnCancelar){
+    const puedeCancelar=USERS[state.usuario]?.rol!=='maestro'&&puedeEliminarRegional(state.visita)&&state.visita.iniciada&&!state.visita.finalizada;
+    btnCancelar.style.display=puedeCancelar?'':'none';
+  }
+
+  // Botón iniciar
+  if(bloqueada && state.step===0){
+    const esAgendada=v.agendada&&v.asignadoA===state.usuario;
+    if(esAgendada){
+      const fechaVisita=v.general.fecha||'';
+      const hoyISO=hoy();
+      if(fechaVisita===hoyISO){
+        btnIniciar.style.display='';
+        btnIniciar.disabled=false;
+        btnIniciar.title='';
+      } else {
+        btnIniciar.style.display='none';
+        const fechaFmt=fechaVisita?new Date(fechaVisita+'T12:00:00').toLocaleDateString('es-MX',{day:'2-digit',month:'long',year:'numeric'}):'—';
+        const msg=fechaVisita<hoyISO?`⚠️ Esta visita venció el ${fechaFmt}`:`📅 Programada para el ${fechaFmt}`;
+        const nav=document.querySelector('.wizard-nav .nav-btns');
+        if(nav&&!nav.querySelector('.agendada-msg')){
+          const span=document.createElement('span');
+          span.className='agendada-msg';
+          span.style.cssText='font-size:13px;font-weight:600;color:var(--ink-soft);padding:0 4px';
+          span.textContent=msg;
+          nav.appendChild(span);
+        }
+      }
+    } else {
+      btnIniciar.style.display='';
+    }
+  } else {
+    btnIniciar.style.display='none';
+  }
 }
 function goStep(n){
   if(n<0||n>PASOS.length-1)return;
+  if(n>0&&!state.visita.iniciada)return; // bloqueo hasta inicio
   state.step=n;state.visita._lastStep=n;guardarVisitaActual();
   renderWizard();document.getElementById('mainScroll').scrollTop=0;
 }
@@ -753,40 +1344,180 @@ function renderStep(){
     conciliacion:renderConciliacion, acc:renderAcc, diferencias:renderDiferencias,
     cantados:renderCantados, resumen:renderResumen
   };
-  document.getElementById('mainScroll').innerHTML=(fn[key]||renderPendiente)();
+  const ms=document.getElementById('mainScroll');
+  ms.innerHTML=(fn[key]||renderPendiente)();
+  const v=state.visita;
+  const esFinalizableKey=SECCIONES_FINALIZABLES.includes(key);
+  const yaFinalizada=esFinalizableKey&&!!(v.seccionesFinalizadas||{})[key];
+
+  // Si la sección está bloqueada: envolver contenido en div inert para bloquear
+  // edición pero preservar scroll del contenedor padre.
+  const bloqueada_sec=(v.finalizada&&key!=='resumen')||yaFinalizada;
+  if(bloqueada_sec){
+    const wrapper=document.createElement('div');
+    wrapper.setAttribute('inert','');
+    wrapper.style.cssText='opacity:0.62;user-select:none';
+    wrapper.innerHTML=ms.innerHTML;
+    ms.innerHTML='';
+    ms.appendChild(wrapper);
+  }
+  ms.style.pointerEvents='';ms.style.userSelect='';ms.style.opacity='';
+
+  // Inyectar banner al fondo (fuera del wrapper inert)
+  if(v.iniciada&&!v.finalizada&&esFinalizableKey){
+    const bannerDiv=document.createElement('div');
+    bannerDiv.id='seccionBanner';
+    if(yaFinalizada){
+      bannerDiv.innerHTML=`<div style="background:#d1fae5;border:1px solid #6ee7b7;border-radius:var(--radius-sm);padding:12px 16px;margin-top:20px;display:flex;align-items:center;gap:10px">
+        <span style="font-size:18px">✅</span>
+        <span style="font-weight:600;color:#065f46;font-size:13px">Sección finalizada — no se pueden realizar más cambios.</span>
+      </div>`;
+    } else {
+      bannerDiv.innerHTML=`<div style="display:flex;justify-content:flex-end;padding:20px 0 4px">
+        <button class="btn btn-primary" onclick="finalizarSeccion('${key}')" style="font-weight:700;font-size:14px;padding:10px 24px">✓ Finalizar sección</button>
+      </div>`;
+    }
+    ms.appendChild(bannerDiv);
+  }
   if(key==='arqueo')recalcArqueo();
   if(key==='conciliacion')recalcConciliacion();
   if(key==='acc')recalcAcc();
   if(key==='depositos')recalcDepositos();
 }
 
+function iniciarVisita(){
+  const g=state.visita.general;
+  // Bloqueo de fecha para visitas agendadas
+  if(state.visita.agendada&&state.visita.asignadoA===state.usuario){
+    if(g.fecha!==hoy()){toast('Solo puedes iniciar esta visita en la fecha asignada.');return;}
+  }
+  if(!g.tienda){toast('Selecciona una tienda para continuar.');return;}
+  if(!g.gerenteTienda||!g.gerenteTienda.trim()){toast('Ingresa el nombre del Gerente de Tienda.');return;}
+  state.visita.iniciada=true;
+  state.visita.inicioTimestamp=Date.now();
+  guardarVisitaActual();
+  toast('¡Visita iniciada! El temporizador ha comenzado.');
+  goStep(1);
+}
+
+function finalizarVisita(){
+  if(!confirm('¿Finalizar la visita? Ya no podrás editar los datos.'))return;
+  state.visita.finalizada=true;
+  state.visita.finTimestamp=Date.now();
+  const inicio=state.visita.inicioTimestamp||state.visita.finTimestamp;
+  state.visita.duracionMin=Math.round((state.visita.finTimestamp-inicio)/60000);
+  guardarVisitaActual();
+  renderWizard();
+  toast('Visita finalizada correctamente.');
+}
+
+function finalizarSeccion(key){
+  if(!SECCIONES_FINALIZABLES.includes(key))return;
+  // Validar arqueo
+  if(key==='arqueo'){
+    const a=state.visita.arqueo;
+    const totB=[1000,500,200,100,50,20].reduce((s,d)=>s+(parseFloat(a.billetes[d])||0)*d,0);
+    const totM=[20,10,5,2,1].reduce((s,d)=>s+(parseFloat(a.monedas[d])||0)*d,0);
+    const tot=totB+totM+(parseFloat(a.vouchers)||0);
+    const ing=parseFloat(a.ingresosReporte)||0;
+    if(tot===0&&ing===0){toast('El arqueo está vacío. Captura el efectivo antes de finalizar.');return;}
+    const dif=tot-ing;
+    if(Math.abs(dif)>0.001&&!a.explicacionDiferencia?.trim()){
+      toast('Hay una diferencia en el arqueo. Debes explicar el motivo antes de finalizar.');return;
+    }
+  }
+  // Validar depósitos
+  if(key==='depositos'){
+    const dep=state.visita.depositos;
+    const filas=dep.filas||[];
+    if(!filas.length){toast('Debes registrar al menos un depósito antes de finalizar esta sección.');return;}
+    if(!dep.recoleccionValores){toast('Debes indicar si el PDV tiene recolección de valores.');return;}
+    const esRec=dep.recoleccionValores==='NO';
+    const sinAntes=filas.filter(f=>!f.antesDeUna);
+    if(sinAntes.length){toast(`Debes contestar "¿Se depositó antes de la 1:00 P.M.?" en ${sinAntes.length} fila(s).`);return;}
+    const sinFrecuencia=filas.filter(f=>!f.frecuenciaEstablecida);
+    if(sinFrecuencia.length){toast(`Debes contestar "¿Se depositó en su frecuencia establecida?" en ${sinFrecuencia.length} fila(s).`);return;}
+    if(esRec){
+      const sinJustif=filas.filter(f=>f.frecuenciaEstablecida==='NO'&&!f.tieneJustificacion);
+      if(sinJustif.length){toast(`Debes contestar "¿Se cuenta con justificación?" en ${sinJustif.length} fila(s).`);return;}
+      const sinComentario=filas.filter(f=>f.frecuenciaEstablecida==='NO'&&f.tieneJustificacion==='SI'&&!f.justificacionComentario?.trim());
+      if(sinComentario.length){toast(`El comentario de justificación es obligatorio en ${sinComentario.length} fila(s).`);return;}
+      const sinDesfase=filas.filter(f=>f.frecuenciaEstablecida==='NO'&&f.tieneJustificacion==='NO'&&(f.diasDesfase===''||f.diasDesfase===null||f.diasDesfase===undefined));
+      if(sinDesfase.length){toast(`Los días de desfase son obligatorios en ${sinDesfase.length} fila(s).`);return;}
+    }
+  }
+  // Validar cancelaciones: archivo cargado + preguntas contestadas
+  if(key==='cancelaciones'){
+    if(!state.visita.cancelaciones.archivoCargado){toast('Debes cargar el Reporte de Transacciones antes de finalizar esta sección.');return;}
+    const regs=state.visita.cancelaciones.registros||[];
+    const sinContestar=regs.filter(r=>r.soporte!=='si'&&r.soporte!=='no');
+    if(sinContestar.length){toast(`Debes contestar la pregunta de soporte en ${sinContestar.length} cancelación(es) antes de finalizar.`);return;}
+    const faltantes=regs.filter(r=>r.soporte==='si'&&!r.comentario?.trim());
+    if(faltantes.length){toast('Completa el comentario de soporte en todas las cancelaciones marcadas con SÍ.');return;}
+  }
+  // Validar inventario serializado: archivo Oracle requerido
+  if(key==='conciliacion'){
+    if(!(state.visita.conciliacion.oracleItems||[]).length){
+      toast('Debes cargar el archivo de Oracle (.xlsx) antes de finalizar esta sección.');return;
+    }
+  }
+  if(!confirm('¿Finalizar esta sección? Ya no podrás editar sus datos.'))return;
+  if(!state.visita.seccionesFinalizadas)state.visita.seccionesFinalizadas={};
+  state.visita.seccionesFinalizadas[key]=true;
+  guardarVisitaActual();
+  renderWizard();
+  toast('Sección finalizada.');
+}
+function reabrirSeccion(key){
+  if(!confirm('¿Reabrir esta sección para editar?'))return;
+  if(!state.visita.seccionesFinalizadas)state.visita.seccionesFinalizadas={};
+  delete state.visita.seccionesFinalizadas[key];
+  guardarVisitaActual();
+  renderWizard();
+  toast('Sección reabierta.');
+}
+
+function fmtDuracion(min){
+  if(!min&&min!==0)return'—';
+  const h=Math.floor(min/60),m=min%60;
+  return h>0?`${h}h ${m}min`:`${m} min`;
+}
+
 /* ---- STEP 1: DATOS GENERALES ---- */
 function renderGeneral() {
   const g=state.visita.general;
+  const esAgendada=state.visita.agendada&&state.visita.asignadoA===state.usuario;
   const tiendas=TIENDAS[state.usuario]||[];
   const opcionesTiendas=tiendas.map(t=>`<option value="${x(t)}" ${g.tienda===t?'selected':''}>${x(t)}</option>`).join('');
+  const bannerAgendada=esAgendada
+    ?`<div style="background:#eff6ff;border:1px solid #93c5fd;border-radius:var(--radius-sm);padding:10px 14px;margin-bottom:16px;font-size:13px;color:#1e40af;display:flex;align-items:center;gap:8px">
+        <span style="font-size:16px">📅</span>
+        <span>Visita Agendada. <strong>Completa el nombre del Gerente de Tienda</strong> para poder iniciarla.</span>
+      </div>`
+    :'';
   return `<div class="step-header"><h2>Información de Visita</h2>
     <p>Esta información aparece en el encabezado del documento final.</p></div>
+  ${bannerAgendada}
   <div class="card"><div class="card-title">IDENTIFICACIÓN</div>
     <div class="form-grid">
       <div class="field-inline">
         <label>Tienda</label>
-        <select onchange="state.visita.general.tienda=this.value;autoSave()">
+        <select ${esAgendada?'disabled style="background:var(--surface-2);cursor:default"':''} onchange="state.visita.general.tienda=this.value;autoSave()">
           <option value="">— Selecciona una tienda —</option>
           ${opcionesTiendas}
         </select>
       </div>
       <div class="field-inline">
         <label>Fecha de la visita</label>
-        <input type="date" value="${g.fecha||hoy()}" readonly style="background:var(--paper);color:var(--ink-soft);cursor:default"/>
+        <input type="date" value="${g.fecha||hoy()}" readonly style="background:var(--surface-2);color:var(--ink-soft);cursor:default"/>
       </div>
       <div class="field-inline">
-        <label>Gerente de Tienda</label>
-        <input value="${x(g.gerenteTienda)}" oninput="state.visita.general.gerenteTienda=this.value;autoSave()"/>
+        <label>Gerente de Tienda <span style="color:var(--red);font-size:11px">* Requerido</span></label>
+        <input value="${x(g.gerenteTienda)}" placeholder="Nombre del gerente..." oninput="state.visita.general.gerenteTienda=this.value;autoSave()" style="${esAgendada&&!g.gerenteTienda?'border-color:var(--red)':''}"/>
       </div>
       <div class="field-inline">
         <label>Gerente Regional</label>
-        <input value="${x(g.gerenteRegional)}" readonly/>
+        <input value="${x(g.gerenteRegional)}" readonly style="background:var(--surface-2);cursor:default"/>
       </div>
     </div>
   </div>
@@ -827,9 +1558,12 @@ function renderArqueo() {
         <label>Voucher's TDC y TDB</label>
         <input type="number" step="0.01" placeholder="0.00" value="${a.vouchers||''}" oninput="state.visita.arqueo.vouchers=this.value;recalcArqueo();autoSave()"/>
       </div>
-      <div class="field-inline" style="grid-column:1/-1">
-        <label>Explicación de la diferencia (si aplica)</label>
-        <input value="${x(a.explicacionDiferencia||'')}" oninput="state.visita.arqueo.explicacionDiferencia=this.value;autoSave()"/>
+      <div class="field-inline" id="arq_exp_wrap" style="grid-column:1/-1;display:none">
+        <label id="arq_exp_label" style="display:flex;align-items:center;gap:6px">
+          Explicación de la diferencia
+          <span style="color:var(--red);font-size:11px;font-weight:700">* Obligatorio</span>
+        </label>
+        <input id="arq_exp_input" placeholder="Describe el motivo de la diferencia…" value="${x(a.explicacionDiferencia||'')}" oninput="state.visita.arqueo.explicacionDiferencia=this.value;this.style.borderColor=this.value.trim()?'var(--green)':'var(--red)';autoSave()"/>
       </div>
     </div>
   </div>
@@ -874,6 +1608,18 @@ function recalcArqueo() {
   setText('arq_ef',fmt(ef));setText('arq_vou',fmt(vou));setText('arq_tot',fmt(tot));setText('arq_dif',fmt(dif));
   const box=document.getElementById('arq_dif_box');
   if(box)box.className='result-box '+(dif===0?'green':dif>0?'amber':'red');
+  // Habilitar campo explicación solo si hay diferencia
+  const wrap=document.getElementById('arq_exp_wrap');
+  const inp=document.getElementById('arq_exp_input');
+  if(wrap){
+    const hayDif=Math.abs(dif)>0.001;
+    wrap.style.display=hayDif?'':'none';
+    if(inp){
+      inp.required=hayDif;
+      if(!hayDif){ inp.value=''; state.visita.arqueo.explicacionDiferencia=''; autoSave(); }
+      inp.style.borderColor=hayDif&&!inp.value.trim()?'var(--red)':'';
+    }
+  }
 }
 
 /* ---- STEP: DEPÓSITOS ---- */
@@ -1370,45 +2116,200 @@ function recalcDepositos(){
 }
 
 /* ---- STEP: CANCELACIONES ---- */
+function normalizarMetodoPago(str){
+  if(!str)return'—';
+  const s=str.toUpperCase();
+  if(s.includes('EFECTIVO'))return'PAGO EN EFECTIVO';
+  if(s.includes('TARJETA'))return'PAGO CON TARJETA';
+  return str.trim();
+}
+
 function renderCancelaciones(){
-  return `<div class="step-header"><h2>Cancelaciones</h2>
-    <p>Registro de cancelaciones realizadas en el período de revisión.</p></div>
-  <div class="card" style="text-align:center;padding:40px">
-    <div style="font-size:40px;margin-bottom:12px">🔧</div>
-    <div style="font-size:16px;font-weight:700;color:var(--ink);margin-bottom:6px">En construcción</div>
-    <div style="font-size:13px;color:var(--ink-soft)">Esta sección se completará próximamente.</div>
-  </div>`;
-}
-function renderCancelaciones_old(){
   const c=state.visita.cancelaciones;
-  if(!c.registros) state.visita.cancelaciones.registros=[];
+  if(!c.registros)state.visita.cancelaciones.registros=[];
   const regs=c.registros;
-  const mkRow=(r,i)=>`<tr>
-    <td><input type="date" value="${r.fecha||''}" oninput="state.visita.cancelaciones.registros[${i}].fecha=this.value;autoSave()"/></td>
-    <td><input value="${x(r.folio||'')}" placeholder="Folio" oninput="state.visita.cancelaciones.registros[${i}].folio=this.value;autoSave()"/></td>
-    <td><input value="${x(r.articulo||'')}" placeholder="Artículo/Descripción" oninput="state.visita.cancelaciones.registros[${i}].articulo=this.value;autoSave()"/></td>
-    <td><input type="number" step="0.01" value="${r.monto||''}" placeholder="0.00" oninput="state.visita.cancelaciones.registros[${i}].monto=this.value;autoSave()"/></td>
-    <td><input value="${x(r.motivo||'')}" placeholder="Motivo" oninput="state.visita.cancelaciones.registros[${i}].motivo=this.value;autoSave()"/></td>
-    <td><button class="icon-btn" onclick="removeCancelacion(${i})" style="color:var(--red)">✕</button></td>
-    </tr>`;
-  const total=regs.reduce((s,r)=>s+(parseFloat(r.monto)||0),0);
+  const conSoporte=regs.filter(r=>r.soporte==='si').length;
+  const sinSoporte=regs.filter(r=>r.soporte==='no').length;
+  const pendientes=regs.filter(r=>!r.soporte).length;
+
+  if(!regs.length){
+    if(c.archivoCargado){
+      // Archivo cargado pero sin cancelaciones
+      return `<div class="step-header"><h2>Cancelaciones</h2>
+        <p>Carga el reporte de transacciones diarias para identificar las cancelaciones.</p></div>
+      <div class="card" style="text-align:center;padding:32px 24px">
+        <div style="font-size:36px;margin-bottom:10px">✅</div>
+        <div style="font-size:15px;font-weight:700;color:#065f46;margin-bottom:6px">No existen cancelaciones en el periodo cargado</div>
+        <div style="font-size:13px;color:var(--ink-soft);margin-bottom:18px">El archivo fue procesado correctamente. No se encontraron transacciones canceladas.</div>
+        <label style="cursor:pointer">
+          <input type="file" accept=".xlsx,.xls" style="display:none" onchange="cargarArchivoCancel(this)"/>
+          <span class="btn" style="pointer-events:none;font-size:12px">↺ Cargar otro archivo</span>
+        </label>
+      </div>`;
+    }
+    return `<div class="step-header"><h2>Cancelaciones</h2>
+      <p>Carga el reporte de transacciones diarias para identificar las cancelaciones.</p></div>
+    <div class="card" style="text-align:center;padding:32px 24px">
+      <div style="font-size:36px;margin-bottom:10px">📂</div>
+      <div style="font-size:15px;font-weight:700;color:var(--ink);margin-bottom:6px">Cargar Reporte de Transacciones</div>
+      <div style="font-size:13px;color:var(--ink-soft);margin-bottom:18px">Se filtrarán automáticamente las transacciones canceladas</div>
+      <label style="cursor:pointer">
+        <input type="file" accept=".xlsx,.xls" style="display:none" onchange="cargarArchivoCancel(this)"/>
+        <span class="btn btn-primary" style="pointer-events:none">📁 Seleccionar archivo (.xlsx)</span>
+      </label>
+    </div>`;
+  }
+
+  const soporteBadge=(val,i)=>{
+    const siSel=val==='si', noSel=val==='no';
+    return `<div style="display:flex;flex-direction:column;gap:4px;min-width:190px">
+      <div style="display:flex;gap:6px">
+        <button onclick="setSoporte(${i},'si')" style="flex:1;padding:5px 8px;border-radius:6px;border:1.5px solid ${siSel?'var(--green)':'var(--line)'};background:${siSel?'#d1fae5':'var(--surface)'};color:${siSel?'#065f46':'var(--ink-soft)'};font-size:12px;font-weight:700;cursor:pointer">✓ SÍ</button>
+        <button onclick="setSoporte(${i},'no')" style="flex:1;padding:5px 8px;border-radius:6px;border:1.5px solid ${noSel?'var(--red)':'var(--line)'};background:${noSel?'#fee2e2':'var(--surface)'};color:${noSel?'#991b1b':'var(--ink-soft)'};font-size:12px;font-weight:700;cursor:pointer">✕ NO</button>
+      </div>
+      ${siSel?`<div style="font-size:10px;color:var(--red);font-weight:600;margin-bottom:2px">* Requerido</div><textarea rows="2" placeholder="Describe el soporte..." style="width:100%;padding:5px 8px;font-size:12px;border:1.5px solid ${regs[i].comentario?'var(--line)':'var(--red)'};border-radius:6px;resize:vertical;font-family:inherit;box-sizing:border-box" oninput="state.visita.cancelaciones.registros[${i}].comentario=this.value;autoSave()">${x(regs[i].comentario||'')}</textarea>`:''}
+    </div>`;
+  };
+
+  const mkRow=(r,i)=>`<tr style="border-bottom:1px solid var(--line);vertical-align:top">
+    <td style="padding:10px 8px;font-size:12px;white-space:nowrap">${x(r.fecha||'—')}</td>
+    <td style="padding:10px 8px;font-size:12px;font-family:monospace">${x(r.attuid||'—')}</td>
+    <td style="padding:10px 8px;font-size:12px;white-space:nowrap">${x(r.ordenCrm||'—')}</td>
+    <td style="padding:10px 8px;font-size:12px">${x(r.telefono||'—')}</td>
+    <td style="padding:10px 8px;font-size:12px">${x(r.cuenta||'—')}</td>
+    <td style="padding:10px 8px;font-size:12px">${x(r.concepto||'—')}</td>
+    <td style="padding:10px 8px;font-size:12px">
+      <span style="display:inline-block;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:700;background:${r.metodoPago==='PAGO EN EFECTIVO'?'#fee2e2':'#fef3c7'};color:${r.metodoPago==='PAGO EN EFECTIVO'?'#991b1b':'#92400e'}">
+        ${x(r.metodoPago||'—')}
+      </span>
+    </td>
+    <td style="padding:10px 8px;text-align:right;font-size:12px;font-weight:700;color:var(--ink);white-space:nowrap">${r.importe>0?'$'+r.importe.toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2}):'—'}</td>
+    <td style="padding:10px 8px">${soporteBadge(r.soporte,i)}</td>
+  </tr>`;
+
+  const metodoCounts={};
+  regs.forEach(r=>{ metodoCounts[r.metodoPago]=(metodoCounts[r.metodoPago]||0)+1; });
+
   return `<div class="step-header"><h2>Cancelaciones</h2>
-    <p>Registro de cancelaciones realizadas en el período de revisión.</p></div>
-  <div class="card">
-    <div class="card-title">CANCELACIONES <span class="chip amber">${regs.length}</span></div>
-    <div style="overflow-x:auto"><table class="data-table">
-      <thead><tr><th>FECHA</th><th>FOLIO</th><th>ARTÍCULO</th><th>MONTO</th><th>MOTIVO</th><th></th></tr></thead>
-      <tbody>${regs.map(mkRow).join('')}</tbody>
-    </table></div>
-    <button class="btn btn-sm" style="margin-top:10px" onclick="addCancelacion()">+ Agregar cancelación</button>
+    <p>Indica si cada cancelación cuenta con soporte.</p></div>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:16px">
+    <div style="background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-sm);padding:12px;text-align:center">
+      <div style="font-size:24px;font-weight:800;color:var(--ink)">${regs.length}</div>
+      <div style="font-size:11px;font-weight:600;color:var(--ink-soft);margin-top:2px">TOTAL CANCELACIONES</div>
+    </div>
+    <div style="background:#d1fae5;border:1px solid #6ee7b7;border-radius:var(--radius-sm);padding:12px;text-align:center">
+      <div style="font-size:24px;font-weight:800;color:#065f46">${conSoporte}</div>
+      <div style="font-size:11px;font-weight:600;color:#047857;margin-top:2px">CON SOPORTE</div>
+    </div>
+    <div style="background:#fee2e2;border:1px solid #fca5a5;border-radius:var(--radius-sm);padding:12px;text-align:center">
+      <div style="font-size:24px;font-weight:800;color:#991b1b">${sinSoporte}</div>
+      <div style="font-size:11px;font-weight:600;color:#991b1b;margin-top:2px">SIN SOPORTE</div>
+    </div>
+    ${pendientes?`<div style="background:#fef3c7;border:1px solid #fcd34d;border-radius:var(--radius-sm);padding:12px;text-align:center">
+      <div style="font-size:24px;font-weight:800;color:#92400e">${pendientes}</div>
+      <div style="font-size:11px;font-weight:600;color:#92400e;margin-top:2px">SIN RESPONDER</div>
+    </div>`:''}
+    ${(()=>{
+      const totEfectivo=regs.filter(r=>r.metodoPago==='PAGO EN EFECTIVO').reduce((s,r)=>s+(r.importe||0),0);
+      const totNoJust=regs.filter(r=>r.metodoPago==='PAGO EN EFECTIVO'&&r.soporte!=='si').reduce((s,r)=>s+(r.importe||0),0);
+      const noJustOk=totNoJust===0;
+      return `
+      <div style="background:#fee2e2;border:1px solid #fca5a5;border-radius:var(--radius-sm);padding:12px;text-align:center">
+        <div style="font-size:24px;font-weight:800;color:#991b1b">${fmt(totEfectivo)}</div>
+        <div style="font-size:11px;font-weight:600;color:#991b1b;margin-top:2px">TOTAL EN EFECTIVO</div>
+      </div>
+      ${(()=>{
+        const noEfectivo=totEfectivo===0;
+        const bg=noJustOk?'#d1fae5':'#fee2e2';
+        const border=noJustOk?'#6ee7b7':'#fca5a5';
+        const color=noJustOk?'#065f46':'#991b1b';
+        const labelColor=noJustOk?'#047857':'#991b1b';
+        const label=noEfectivo?'NO EXISTEN CANCELACIONES EN EFECTIVO':noJustOk?'LAS CANCELACIONES EN EFECTIVO ESTÁN JUSTIFICADAS':'SIN JUSTIFICAR';
+        const valor=noJustOk?'$0':fmt(totNoJust);
+        return `<div style="background:${bg};border:1px solid ${border};border-radius:var(--radius-sm);padding:12px;text-align:center">
+          <div style="font-size:24px;font-weight:800;color:${color}">${valor}</div>
+          <div style="font-size:11px;font-weight:600;color:${labelColor};margin-top:2px">${label}</div>
+        </div>`;
+      })()}`;
+    })()}
   </div>
-  <div class="result-grid">
-    <div class="result-box ${total>0?'red':'green'}"><div class="val">${fmt(total)}</div><div class="lbl">TOTAL CANCELACIONES</div></div>
-    <div class="result-box"><div class="val">${regs.length}</div><div class="lbl">REGISTROS</div></div>
+
+  <div class="card" style="padding:0;overflow:hidden">
+    <div style="padding:12px 16px;background:var(--surface-2);border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+      <div style="font-size:12px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em">Detalle de Cancelaciones</div>
+      <label style="cursor:pointer">
+        <input type="file" accept=".xlsx,.xls" style="display:none" onchange="cargarArchivoCancel(this)"/>
+        <span class="btn btn-sm" style="pointer-events:none;font-size:12px">↺ Recargar archivo</span>
+      </label>
+    </div>
+    <div style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;font-family:inherit">
+        <thead>
+          <tr style="background:var(--surface-2);border-bottom:1px solid var(--line)">
+            <th style="padding:8px 8px;text-align:left;font-size:10px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em;white-space:nowrap">Fecha</th>
+            <th style="padding:8px 8px;text-align:left;font-size:10px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em">ATTUID</th>
+            <th style="padding:8px 8px;text-align:left;font-size:10px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em;white-space:nowrap">Orden CRM/OMS</th>
+            <th style="padding:8px 8px;text-align:left;font-size:10px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em">Teléfono</th>
+            <th style="padding:8px 8px;text-align:left;font-size:10px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em">Cuenta</th>
+            <th style="padding:8px 8px;text-align:left;font-size:10px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em">Concepto</th>
+            <th style="padding:8px 8px;text-align:left;font-size:10px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em;white-space:nowrap">Método de Pago</th>
+            <th style="padding:8px 8px;text-align:right;font-size:10px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em">Importe</th><th style="padding:8px 8px;text-align:left;font-size:10px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em;white-space:nowrap">¿Cuenta con Soporte?</th>
+          </tr>
+        </thead>
+        <tbody>${regs.map(mkRow).join('')}</tbody>
+      </table>
+    </div>
   </div>`;
 }
-function addCancelacion(){state.visita.cancelaciones.registros.push({fecha:'',folio:'',articulo:'',monto:'',motivo:''});autoSave();renderStep();}
-function removeCancelacion(i){state.visita.cancelaciones.registros.splice(i,1);autoSave();renderStep();}
+
+function cargarArchivoCancel(input){
+  const file=input.files[0];
+  if(!file)return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{
+      const wb=XLSX.read(e.target.result,{type:'array'});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+      // Header en fila 9 (índice 8), datos desde fila 10 (índice 9)
+      const registros=[];
+      for(let i=9;i<rows.length;i++){
+        const r=rows[i];
+        const cancelado=String(r[20]||'').trim().toUpperCase();
+        if(cancelado!=='SI')continue;
+        registros.push({
+          fecha:    String(r[21]||'').trim(),
+          attuid:   String(r[13]||'').trim(),
+          ordenCrm: String(r[1]||'').trim(),
+          telefono: String(r[8]||'').trim(),
+          cuenta:   String(r[9]||'').trim(),
+          concepto: String(r[4]||'').trim(),
+          metodoPago: normalizarMetodoPago(String(r[5]||'')),
+          importe:  parseFloat(String(r[23]||'').replace(/[^0-9.-]/g,''))||0,
+          soporte:  null,
+          comentario:''
+        });
+      }
+      state.visita.cancelaciones.registros=registros;
+      state.visita.cancelaciones.archivoCargado=true;
+      autoSave();
+      renderStep();
+      toast(registros.length+' cancelación'+(registros.length!==1?'es':'')+ ' encontrada'+(registros.length!==1?'s':''));
+    }catch(err){
+      toast('Error al leer el archivo: '+err.message);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function setSoporte(i,val){
+  if(!state.visita.cancelaciones.registros[i])return;
+  state.visita.cancelaciones.registros[i].soporte=val;
+  if(val==='no')state.visita.cancelaciones.registros[i].comentario='';
+  autoSave();
+  renderStep();
+}
 
 /* ---- STEP: DIFERENCIAS (Inventarios) ---- */
 function renderDiferencias(){
@@ -1691,14 +2592,54 @@ function renderResumen(){
   const fI=oI.filter(i=>!v.conciliacion.escaneados.includes(i)).length;
   const fA=v.acc.items.filter(it=>{const o=parseFloat(it.oracle),c=parseFloat(it.contado);return !isNaN(o)&&!isNaN(c)&&c<o;}).length;
   const bnd=(v.cantados.registros||[]).filter(r=>r.consumos==='NO'||r.dobleCotejo==='NO'||r.referenciasReales==='NO').length;
+
+  // Banner de estado
+  let bannerHtml='';
+  if(v.finalizada){
+    const dur=fmtDuracion(v.duracionMin);
+    bannerHtml=`<div style="background:#d1fae5;border:1px solid #6ee7b7;border-radius:var(--radius-sm);padding:14px 18px;margin-bottom:16px;display:flex;align-items:center;gap:12px">
+      <span style="font-size:22px">✅</span>
+      <div>
+        <div style="font-weight:700;color:#065f46;font-size:14px">Visita Finalizada</div>
+        <div style="font-size:12px;color:#047857">Duración: ${dur} · No se pueden realizar más cambios</div>
+      </div>
+    </div>`;
+  } else {
+    const secFin=v.seccionesFinalizadas||{};
+    const todasListas=SECCIONES_FINALIZABLES.every(k=>!!secFin[k]);
+    const pendientes=SECCIONES_FINALIZABLES.filter(k=>!secFin[k]);
+    const pendientesLabels=pendientes.map(k=>{const p=PASOS.find(x=>x.key===k);return p?p.label:k;});
+    if(todasListas){
+      bannerHtml=`<div style="background:var(--amber-bg);border:1px solid var(--amber-border);border-radius:var(--radius-sm);padding:14px 18px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;gap:12px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="font-size:18px">⏱️</span>
+          <div style="font-size:13px;color:var(--amber);font-weight:600">Todas las secciones están finalizadas — puedes concluir la visita.</div>
+        </div>
+        <button class="btn" onclick="finalizarVisita()" style="background:var(--green);color:#fff;border-color:var(--green);white-space:nowrap;font-weight:700">
+          ✓ Finalizar Visita
+        </button>
+      </div>`;
+    } else {
+      bannerHtml=`<div style="background:#fee2e2;border:1px solid #fca5a5;border-radius:var(--radius-sm);padding:14px 18px;margin-bottom:16px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+          <span style="font-size:18px">🔒</span>
+          <div style="font-size:13px;color:#991b1b;font-weight:700">Debes finalizar todas las secciones antes de concluir la visita.</div>
+        </div>
+        <div style="font-size:12px;color:#b91c1c;padding-left:28px">Pendientes: ${pendientesLabels.join(' · ')}</div>
+      </div>`;
+    }
+  }
+
   return `<div class="step-header"><h2>Resumen de Visita</h2>
     <p>Revisa los resultados de la visita y descarga el documento final.</p></div>
+  ${bannerHtml}
   <div class="card"><div class="card-title">RESULTADOS GENERALES</div>
     <div class="resumen-grid">
       <div class="resumen-box"><div class="val" style="color:${dif===0?'var(--green)':dif>0?'var(--amber)':'var(--red)'}">${fmt(dif)}</div><div class="lbl">SOBRANTE / FALTANTE CAJA</div></div>
       <div class="resumen-box"><div class="val" style="color:${fI>0?'var(--red)':'var(--green)'}">${fI}</div><div class="lbl">IMEI FALTANTES</div></div>
       <div class="resumen-box"><div class="val" style="color:${fA>0?'var(--red)':'var(--green)'}">${fA}</div><div class="lbl">ACCESORIOS FALTANTES</div></div>
       <div class="resumen-box"><div class="val" style="color:${bnd>0?'var(--red)':'var(--green)'}">${bnd}</div><div class="lbl">CANTADOS CON BANDERA</div></div>
+      ${v.duracionMin!=null?`<div class="resumen-box"><div class="val" style="color:var(--blue)">${fmtDuracion(v.duracionMin)}</div><div class="lbl">DURACIÓN TOTAL</div></div>`:''}
     </div></div>
   <div class="card"><div class="card-title">DOCUMENTO</div>
     <p style="font-size:13px;color:var(--ink-soft);margin-bottom:16px">Incluye arqueo, conciliación, accesorios y cantados con espacio de firmas.</p>
@@ -1783,13 +2724,21 @@ function exportBackup(){
 function importBackup(evt){
   const f=evt.target.files[0];if(!f)return;
   const r=new FileReader();
-  r.onload=e=>{try{const data=JSON.parse(e.target.result);if(Array.isArray(data)){guardarVisitas(data);if(USERS[state.usuario]?.rol==='maestro')renderDashboard();else renderHome();toast(`${data.length} visitas importadas`);}else throw 0;}catch{toast('Archivo inválido');}};
+  r.onload=e=>{try{const data=JSON.parse(e.target.result);if(Array.isArray(data)){guardarVisitas(data);if(USERS[state.usuario]?.rol==='maestro')renderMaestroHome();else renderHome();toast(`${data.length} visitas importadas`);}else throw 0;}catch{toast('Archivo inválido');}};
   r.readAsText(f);evt.target.value='';
 }
 
 /* ============================================================
    UTILS
    ============================================================ */
+function clickChipVencida(e){
+  e.stopPropagation();
+  toast('No es posible iniciar esta visita — la fecha asignada ya venció.');
+}
+function clickChipFutura(e){
+  e.stopPropagation();
+  toast('No es posible iniciar la visita, no está agendada para hoy.');
+}
 let saveTimer=null;
 function autoSave(){clearTimeout(saveTimer);saveTimer=setTimeout(()=>guardarVisitaActual(),600);}
 function fmt(n){return new Intl.NumberFormat('es-MX',{style:'currency',currency:'MXN'}).format(n||0);}
@@ -1814,7 +2763,7 @@ function getPerfil(usuario) { return cargarPerfiles()[usuario] || {}; }
 
 function getInitial(usuario) {
   const nombre = USERS[usuario]?.nombre || usuario;
-  return nombre.trim().charAt(0).toUpperCase();
+  return nombreCorto(nombre).trim().charAt(0).toUpperCase();
 }
 
 function updateTopbarProfile() {
@@ -1823,16 +2772,16 @@ function updateTopbarProfile() {
   const perfil = getPerfil(u);
   const nombre = USERS[u]?.nombre || u;
   const titulo = getUserTitle(u);
-  const apellido = nombre.split(' ').slice(0,2).join(' '); // primeros dos tokens
+  const nc = nombreCorto(nombre);
   const initial = getInitial(u);
 
   // Topbar pill
   setText('userTitleLabel', titulo);
-  setText('userNameLabel', apellido);
+  setText('userNameLabel', nc);
   setText('topbarInitial', initial);
   setText('dropInitial', initial);
   setText('dropTitle', titulo);
-  setText('dropName', nombre.split(' ').slice(0,3).join(' '));
+  setText('dropName', nc);
 
   // Avatar photo
   const topbarAv = document.getElementById('topbarAvatar');
@@ -1940,7 +2889,7 @@ function openAdminPassModal(){
       <div style="border:1px solid var(--line);border-radius:var(--radius-sm);padding:14px 16px;margin-bottom:10px;background:var(--surface-2)">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
           <div>
-            <div style="font-weight:700;font-size:13px;color:var(--ink)">${data.nombre}</div>
+            <div style="font-weight:700;font-size:13px;color:var(--ink)">${nombreCorto(data.nombre)}</div>
             <div style="font-size:11px;color:var(--ink-soft);letter-spacing:.03em">${u} · <span style="text-transform:capitalize">${data.rol}</span></div>
           </div>
         </div>
@@ -1968,7 +2917,7 @@ async function aplicarPassAdmin(usuario){
   inp.value='';
   inp.style.borderColor='var(--green)';
   setTimeout(()=>{ inp.style.borderColor=''; },1800);
-  toast('Contraseña de '+USERS[usuario].nombre.split(' ')[0]+' actualizada');
+  toast('Contraseña de '+nombreCorto(USERS[usuario].nombre)+' actualizada');
 }
 
 /* ============================================================
@@ -1982,7 +2931,7 @@ function afterLogin() {
   if(adminBtn) adminBtn.style.display=(u.rol==='maestro'?'':'none');
   updateTopbarProfile();
   hideAll();
-  if (u.rol === 'maestro') showDashboard(); else showHome();
+  if (u.rol === 'maestro') showMaestroHome(); else showHome();
 }
 
 /* INIT */
