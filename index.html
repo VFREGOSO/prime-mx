@@ -598,15 +598,26 @@ let calMes = { year:_now.getFullYear(), month:_now.getMonth() };
 /* ============================================================
    MODELO DE DATOS
    ============================================================ */
-function getSemana() {
-  const now=new Date(), d=new Date(Date.UTC(now.getFullYear(),now.getMonth(),now.getDate()));
+function getNumSemana(offset){
+  const now=new Date();
+  const d=new Date(Date.UTC(now.getFullYear(),now.getMonth(),now.getDate()));
   d.setUTCDate(d.getUTCDate()+4-(d.getUTCDay()||7));
-  const ys=new Date(Date.UTC(d.getUTCFullYear(),0,1)), wk=Math.ceil((((d-ys)/86400000)+1)/7);
-  const ini=new Date(now); ini.setDate(now.getDate()-now.getDay()+1);
-  const fin=new Date(ini); fin.setDate(ini.getDate()+6);
-  const f=d=>`${d.getDate()} ${['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'][d.getMonth()]}`;
+  const ys=new Date(Date.UTC(d.getUTCFullYear(),0,1));
+  const wk=Math.ceil((((d-ys)/86400000)+1)/7);
+  return Math.max(1,wk+(offset||0));
+}
+function labelSemana(wk){
+  const year=new Date().getFullYear();
+  const jan4=new Date(year,0,4);
+  const w1s=new Date(jan4);w1s.setDate(jan4.getDate()-((jan4.getDay()||7)-1));
+  const ini=new Date(w1s);ini.setDate(w1s.getDate()+(wk-1)*7);
+  const fin=new Date(ini);fin.setDate(ini.getDate()+6);
+  const ms=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+  const f=d=>`${d.getDate()} ${ms[d.getMonth()]}`;
   return `Semana ${wk} (${f(ini)}–${f(fin)})`;
 }
+function parseSemana(s){if(!s&&s!==0)return 0;const n=parseInt(String(s).replace(/\D/g,''));return isNaN(n)?0:n;}
+function getSemana(){return labelSemana(getNumSemana());}
 function hoy() { const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
 // Devuelve "Primer Nombre + Primer Apellido" a partir de nombre completo
 // 3 palabras → partes[0]+[1]; 4+ palabras → partes[0]+[2] (salta segundo nombre)
@@ -644,8 +655,8 @@ function nuevaVisita() {
     cancelaciones: { registros:[], archivoCargado:false },
     conciliacion: { oracleItems:[], escaneados:[] },
     acc: { items:[] },
-    diferencias: { notas:'' },
-    cantados: { semana:getSemana(), registros:[] },
+    diferencias: { registros:[] },
+    cantados: { semana:getNumSemana(-4), registros:[], archivoCargado:false },
     _lastStep: 0,
     iniciada: false,
     finalizada: false,
@@ -1211,7 +1222,7 @@ function renderDashboard(){
   const totalVisitas=todas.length;
   const totalTiendas=new Set(todas.map(v=>v.general.tienda).filter(Boolean)).size;
   const totalRegionales=new Set(todas.map(v=>v.creadoPor).filter(Boolean)).size;
-  const conBandera=todas.filter(v=>(v.cantados.registros||[]).some(r=>r.consumos==='NO'||r.dobleCotejo==='NO'||r.referenciasReales==='NO')).length;
+  const conBandera=todas.filter(v=>(v.cantados.registros||[]).some(r=>r.cantado==='Incorrecto'||r.estatus==='En Atraso'||r.estatus==='Suspendida'||r.estatus==='Cancelada')).length;
   document.getElementById('dashStats').innerHTML=`
     <div class="stat-box"><div class="val">${totalVisitas}</div><div class="lbl">Total visitas</div></div>
     <div class="stat-box"><div class="val">${totalTiendas}</div><div class="lbl">Tiendas visitadas</div></div>
@@ -1239,7 +1250,7 @@ function renderDashboard(){
         const oI=v.conciliacion.oracleItems.map(i=>i.imei);
         const fI=oI.filter(i=>!v.conciliacion.escaneados.includes(i)).length;
         const fA=v.acc.items.filter(it=>{const o=parseFloat(it.oracle),c=parseFloat(it.contado);return !isNaN(o)&&!isNaN(c)&&c<o;}).length;
-        const bnd=(v.cantados.registros||[]).filter(r=>r.consumos==='NO'||r.dobleCotejo==='NO'||r.referenciasReales==='NO').length;
+        const bnd=(v.cantados.registros||[]).filter(r=>r.cantado==='Incorrecto'||r.estatus==='En Atraso'||r.estatus==='Suspendida'||r.estatus==='Cancelada').length;
         const pct=calcPct(v);
         const fecha=v.general.fecha?new Date(v.general.fecha+'T12:00:00').toLocaleDateString('es-MX',{day:'2-digit',month:'2-digit',year:'numeric'}):'—';
         html+=`<tr>
@@ -1362,6 +1373,7 @@ function renderStep(){
     ms.appendChild(wrapper);
   }
   ms.style.pointerEvents='';ms.style.userSelect='';ms.style.opacity='';
+  if(key==='cantados')setTimeout(updateCantSummary,0);
 
   // Inyectar banner al fondo (fuera del wrapper inert)
   if(v.iniciada&&!v.finalizada&&esFinalizableKey){
@@ -1459,6 +1471,41 @@ function finalizarSeccion(key){
   if(key==='conciliacion'){
     if(!(state.visita.conciliacion.oracleItems||[]).length){
       toast('Debes cargar el archivo de Oracle (.xlsx) antes de finalizar esta sección.');return;
+    }
+  }
+  // Validar diferencias: todas deben tener soporte contestado
+  if(key==='diferencias'){
+    const derivadas=getDiferenciasDerivadas();
+    if(derivadas.length){
+      const stored={};
+      (state.visita.diferencias.registros||[]).forEach(r=>{stored[r.id]=r;});
+      const sinResp=derivadas.filter(d=>!stored[d.id]?.soporte);
+      if(sinResp.length){toast(`Debes indicar si cada diferencia cuenta con soporte (${sinResp.length} pendiente(s)).`);return;}
+      const sinCom=derivadas.filter(d=>stored[d.id]?.soporte==='si'&&!stored[d.id]?.comentario?.trim());
+      if(sinCom.length){toast(`Completa el campo de soporte en ${sinCom.length} diferencia(s) marcadas con SÍ.`);return;}
+    }
+  }
+  if(key==='cantados'){
+    if(!state.visita.cantados.archivoCargado){toast('Debes cargar el archivo de cantados antes de finalizar.');return;}
+    const semana=parseInt(state.visita.cantados.semana)||getNumSemana(-4);
+    const regsP=(state.visita.cantados.registros||[]).filter(r=>parseSemana(r.semana)===semana);
+    if(!regsP.length){toast('No hay registros en el periodo seleccionado. Carga el archivo y selecciona la semana correcta.');return;}
+    const campos=[
+      {k:'cantado',   lbl:'Cantado'},
+      {k:'cliente',   lbl:'Cliente'},
+      {k:'telefonoFijo', lbl:'Tel. Fijo'},
+      {k:'correoCliente',lbl:'Correo'},
+      {k:'estatus',   lbl:'Estatus'},
+      {k:'cuentasLigadas',lbl:'Cuentas Ligadas'},
+      {k:'cotejo',    lbl:'Cotejo'},
+      {k:'llamada',   lbl:'Llamada'},
+      {k:'correoValidacion',lbl:'Correo Val.'},
+      {k:'consumos',  lbl:'Consumos'},
+      {k:'expediente',lbl:'Expediente'},
+    ];
+    for(const {k,lbl} of campos){
+      const incompletos=regsP.filter(r=>!r[k]||r[k]==='').length;
+      if(incompletos){toast(`Completa el campo "${lbl}" en ${incompletos} registro(s) antes de finalizar.`);return;}
     }
   }
   if(!confirm('¿Finalizar esta sección? Ya no podrás editar sus datos.'))return;
@@ -2312,13 +2359,150 @@ function setSoporte(i,val){
 }
 
 /* ---- STEP: DIFERENCIAS (Inventarios) ---- */
+function getDiferenciasDerivadas(){
+  const v=state.visita;
+  const lista=[];
+  const oracleItems=v.conciliacion.oracleItems||[];
+  const escaneados=v.conciliacion.escaneados||[];
+  const oracleImeis=oracleItems.map(i=>i.imei);
+  oracleItems.filter(item=>!escaneados.includes(item.imei)).forEach(item=>{
+    lista.push({id:`serial_F_${item.imei}`,origen:'Serializados',sku:item.articulo||item.sku||'—',detalle:item.imei,estatus:'Faltante'});
+  });
+  escaneados.filter(imei=>!oracleImeis.includes(imei)).forEach(imei=>{
+    lista.push({id:`serial_S_${imei}`,origen:'Serializados',sku:'—',detalle:imei,estatus:'Sobrante'});
+  });
+  (v.acc.items||[]).forEach((item,i)=>{
+    const o=parseFloat(item.oracle),c=parseFloat(item.contado);
+    if(isNaN(o)||isNaN(c)||o===c)return;
+    const estatus=c<o?'Faltante':'Sobrante';
+    lista.push({id:`acc_${estatus}_${i}_${item.sku}`,origen:'Accesorios',sku:item.sku||'—',detalle:item.descripcion||'—',estatus});
+  });
+  return lista;
+}
+function setSoporteDif(id,val){
+  if(!state.visita.diferencias.registros)state.visita.diferencias.registros=[];
+  let rec=state.visita.diferencias.registros.find(r=>r.id===id);
+  if(!rec){rec={id,soporte:null,comentario:''};state.visita.diferencias.registros.push(rec);}
+  rec.soporte=val;
+  if(val==='no')rec.comentario='';
+  if(val==='si')rec.monto='';
+  autoSave();renderStep();
+}
+function setComentarioDif(id,val){
+  if(!state.visita.diferencias.registros)state.visita.diferencias.registros=[];
+  let rec=state.visita.diferencias.registros.find(r=>r.id===id);
+  if(!rec){rec={id,soporte:'si',comentario:''};state.visita.diferencias.registros.push(rec);}
+  rec.comentario=val;
+  autoSave();
+}
+function setMontoDif(id,val){
+  if(!state.visita.diferencias.registros)state.visita.diferencias.registros=[];
+  let rec=state.visita.diferencias.registros.find(r=>r.id===id);
+  if(!rec){rec={id,soporte:'no',comentario:'',monto:''};state.visita.diferencias.registros.push(rec);}
+  rec.monto=val;
+  autoSave();
+  // Actualizar total en tiempo real sin re-renderizar
+  const el=document.getElementById('difTotalCosto');
+  if(el){
+    const total=(state.visita.diferencias.registros||[]).reduce((s,r)=>s+(r.soporte==='no'?(parseFloat(r.monto)||0):0),0);
+    el.textContent=fmt(total);
+  }
+}
 function renderDiferencias(){
-  return `<div class="step-header"><h2>Diferencias de Inventario</h2>
-    <p>Consolidado de diferencias detectadas en serializados y accesorios.</p></div>
-  <div class="card" style="text-align:center;padding:40px">
-    <div style="font-size:40px;margin-bottom:12px">🔧</div>
-    <div style="font-size:16px;font-weight:700;color:var(--ink);margin-bottom:6px">En construcción</div>
-    <div style="font-size:13px;color:var(--ink-soft)">Esta sección se completará próximamente con el análisis consolidado de diferencias de serializados y accesorios.</div>
+  const v=state.visita;
+  const derivadas=getDiferenciasDerivadas();
+  const stored={};
+  (v.diferencias.registros||[]).forEach(r=>{stored[r.id]=r;});
+  const rows=derivadas.map(d=>({...d,soporte:stored[d.id]?.soporte||null,comentario:stored[d.id]?.comentario||'',monto:stored[d.id]?.monto||''}));
+
+  if(!rows.length){
+    return `<div class="step-header"><h2>Diferencias</h2>
+      <p>Consolidado de diferencias detectadas en Inventarios.</p></div>
+    <div class="card" style="text-align:center;padding:32px 24px">
+      <div style="font-size:36px;margin-bottom:10px">✅</div>
+      <div style="font-size:15px;font-weight:700;color:#065f46;margin-bottom:6px">Sin diferencias detectadas</div>
+      <div style="font-size:13px;color:var(--ink-soft)">El inventario serializado y de accesorios está conciliado.</div>
+    </div>`;
+  }
+
+  const faltantes=rows.filter(r=>r.estatus==='Faltante').length;
+  const sobrantes=rows.filter(r=>r.estatus==='Sobrante').length;
+  const sinResp=rows.filter(r=>!r.soporte).length;
+  const totalMonto=rows.filter(r=>r.soporte==='no'&&r.estatus==='Faltante').reduce((s,r)=>s+(parseFloat(r.monto)||0),0);
+
+  const mkSoporte=(id,soporte)=>`<div style="display:flex;gap:5px;justify-content:center">
+    <button onclick="setSoporteDif('${id}','si')" style="padding:4px 10px;border-radius:5px;border:1.5px solid var(--green);background:${soporte==='si'?'var(--green)':'transparent'};color:${soporte==='si'?'#fff':'var(--green)'};font-size:12px;font-weight:700;cursor:pointer">✓ SÍ</button>
+    <button onclick="setSoporteDif('${id}','no')" style="padding:4px 10px;border-radius:5px;border:1.5px solid var(--red);background:${soporte==='no'?'var(--red)':'transparent'};color:${soporte==='no'?'#fff':'var(--red)'};font-size:12px;font-weight:700;cursor:pointer">✕ NO</button>
+  </div>`;
+
+  const mkComentario=(id,soporte,estatus,comentario)=>{
+    if(!soporte)return'<span style="color:var(--ink-muted)">—</span>';
+    if(soporte==='no')return`<span class="chip ${estatus==='Faltante'?'red':'amber'}">${estatus} Real</span>`;
+    return`<textarea rows="2" placeholder="Describe el soporte..." style="width:100%;min-width:160px;padding:5px 8px;font-size:12px;border:1.5px solid ${comentario?'var(--line)':'var(--red)'};border-radius:6px;resize:vertical;font-family:inherit;box-sizing:border-box" oninput="setComentarioDif('${id}',this.value)">${x(comentario)}</textarea>`;
+  };
+  const mkMonto=(id,soporte,estatus,monto)=>{
+    if(soporte==='no'&&estatus==='Faltante')
+      return`<div style="display:inline-flex;align-items:center;border:1.5px solid ${monto?'var(--line)':'var(--red)'};border-radius:6px;overflow:hidden;font-family:inherit">
+        <span style="padding:5px 6px;background:var(--surface-2);font-size:13px;font-weight:700;color:var(--ink-soft);border-right:1px solid var(--line)">$</span>
+        <input type="number" min="0" step="0.01" placeholder="0.00" value="${x(monto||'')}" oninput="setMontoDif('${id}',this.value)" style="width:100px;text-align:right;padding:5px 8px;font-size:13px;font-weight:600;border:none;outline:none;font-family:inherit;background:transparent"/>
+      </div>`;
+    return'<span style="color:var(--ink-muted)">—</span>';
+  };
+
+  return `<div class="step-header"><h2>Diferencias</h2>
+    <p>Consolidado de diferencias detectadas en Inventarios. Indica si cada una cuenta con soporte.</p></div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:16px">
+    <div style="background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-sm);padding:12px;text-align:center">
+      <div style="font-size:24px;font-weight:800;color:var(--ink)">${rows.length}</div>
+      <div style="font-size:11px;font-weight:600;color:var(--ink-soft);margin-top:2px">TOTAL DIFERENCIAS</div>
+    </div>
+    <div style="background:#fee2e2;border:1px solid #fca5a5;border-radius:var(--radius-sm);padding:12px;text-align:center">
+      <div style="font-size:24px;font-weight:800;color:#991b1b">${faltantes}</div>
+      <div style="font-size:11px;font-weight:600;color:#991b1b;margin-top:2px">FALTANTES</div>
+    </div>
+    <div style="background:#fef3c7;border:1px solid #fcd34d;border-radius:var(--radius-sm);padding:12px;text-align:center">
+      <div style="font-size:24px;font-weight:800;color:#92400e">${sobrantes}</div>
+      <div style="font-size:11px;font-weight:600;color:#92400e;margin-top:2px">SOBRANTES</div>
+    </div>
+    ${sinResp?`<div style="background:#fef3c7;border:1px solid #fcd34d;border-radius:var(--radius-sm);padding:12px;text-align:center">
+      <div style="font-size:24px;font-weight:800;color:#92400e">${sinResp}</div>
+      <div style="font-size:11px;font-weight:600;color:#92400e;margin-top:2px">SIN RESPONDER</div>
+    </div>`:''}
+    <div style="background:#fee2e2;border:1px solid #fca5a5;border-radius:var(--radius-sm);padding:12px;text-align:center">
+      <div id="difTotalCosto" style="font-size:24px;font-weight:800;color:#991b1b">${fmt(totalMonto)}</div>
+      <div style="font-size:11px;font-weight:600;color:#991b1b;margin-top:2px">TOTAL COSTO SIN SOPORTE</div>
+    </div>
+  </div>
+  <div class="card" style="padding:0;overflow:hidden">
+    <div style="padding:12px 16px;background:var(--surface-2);border-bottom:1px solid var(--line)">
+      <div style="font-size:12px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em">Detalle de Diferencias</div>
+    </div>
+    <div style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;font-family:inherit">
+        <thead>
+          <tr style="background:var(--surface-2);border-bottom:1px solid var(--line)">
+            <th style="padding:8px;text-align:left;font-size:10px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em;white-space:nowrap">Origen</th>
+            <th style="padding:8px;text-align:left;font-size:10px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em;white-space:nowrap">SKU / Artículo</th>
+            <th style="padding:8px;text-align:left;font-size:10px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em;white-space:nowrap">IMEI / Descripción</th>
+            <th style="padding:8px;text-align:center;font-size:10px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em">Estatus</th>
+            <th style="padding:8px;text-align:center;font-size:10px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em;white-space:nowrap">¿Cuenta con Soporte?</th>
+            <th style="padding:8px;text-align:center;font-size:10px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em;white-space:nowrap">Comentario</th>
+            <th style="padding:8px;text-align:right;font-size:10px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em;white-space:nowrap">Costo</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows.map(r=>`<tr style="border-bottom:1px solid var(--line);vertical-align:middle">
+            <td style="padding:8px;white-space:nowrap"><span style="font-size:11px;background:var(--surface-2);color:var(--ink-soft);padding:2px 8px;border-radius:20px;font-weight:600">${r.origen}</span></td>
+            <td style="padding:8px;font-size:12px;font-weight:600">${x(r.sku)}</td>
+            <td style="padding:8px;font-size:11px;color:var(--ink-soft);font-family:monospace;word-break:break-all;max-width:180px">${x(r.detalle)}</td>
+            <td style="padding:8px;text-align:center"><span class="chip ${r.estatus==='Faltante'?'red':'amber'}">${r.estatus}</span></td>
+            <td style="padding:8px;text-align:center">${mkSoporte(r.id,r.soporte)}</td>
+            <td style="padding:8px;min-width:160px;text-align:center">${mkComentario(r.id,r.soporte,r.estatus,r.comentario)}</td>
+            <td style="padding:8px;text-align:right">${mkMonto(r.id,r.soporte,r.estatus,r.monto)}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
   </div>`;
 }
 
@@ -2515,73 +2699,430 @@ function recalcConciliacion(){
 }
 
 /* ---- STEP 4: ACCESORIOS ---- */
+function limpiarAcc(){
+  if(!confirm('¿Limpiar el archivo cargado? Se perderá todo el conteo registrado.'))return;
+  state.visita.acc.items=[];
+  autoSave();renderStep();
+}
+function cargarArchivoAcc(input){
+  const file=input.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{
+      const wb=XLSX.read(e.target.result,{type:'array'});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+      const items=[];
+      for(let i=1;i<rows.length;i++){
+        const r=rows[i];
+        if(!r[3]&&!r[4])continue;
+        const onHand=parseFloat(String(r[7]||''));
+        items.push({subinventario:String(r[1]||'').trim(),localizador:String(r[2]||'').trim(),sku:String(r[3]||'').trim(),descripcion:String(r[4]||'').trim(),oracle:isNaN(onHand)?'':String(onHand),contado:''});
+      }
+      state.visita.acc.items=items;
+      autoSave();renderStep();
+      toast(`${items.length} accesorios cargados`);
+    }catch(err){toast('Error al leer el archivo: '+err.message);}
+  };
+  reader.readAsArrayBuffer(file);
+}
+function agregarAccManual(){
+  const sku=prompt('SKU del artículo sobrante:','');
+  if(!sku||!sku.trim())return;
+  const desc=prompt('Descripción:','');
+  state.visita.acc.items.push({subinventario:'',localizador:'',sku:sku.trim().toUpperCase(),descripcion:(desc||'').trim(),oracle:'0',contado:'',manual:true});
+  autoSave();renderStep();
+}
 function renderAcc(){
   const items=state.visita.acc.items;
-  const mkRow=(it,i)=>`<tr>
-    <td>${it.sku||'—'}</td><td>${x(it.descripcion||'')}</td>
-    <td style="text-align:center">${it.oracle!==''?it.oracle:'—'}</td>
-    <td><input type="number" min="0" value="${it.contado||''}" style="width:70px" oninput="state.visita.acc.items[${i}].contado=this.value;recalcAcc();autoSave()"/></td>
-    <td id="acc_d_${i}" style="text-align:center">—</td><td id="acc_e_${i}"></td>
-    <td><input value="${x(it.comentario||'')}" oninput="state.visita.acc.items[${i}].comentario=this.value;autoSave()"/></td>
-    <td><button class="icon-btn" onclick="removeAcc(${i})">✕</button></td></tr>`;
-  return `<div class="step-header"><h2>Inventario Accesorios</h2>
-    <p>Conteo manual comparado contra el inventario de Oracle.</p></div>
-  <div class="card"><div class="card-title">CARGAR DESDE ORACLE (OPCIONAL)</div>
-    <textarea class="paste-area" id="accPaste" placeholder="Pega el reporte (SKU, Descripción, Cant. Oracle)"></textarea>
-    <button class="btn btn-sm" style="margin-top:6px" onclick="loadAccPaste()">Cargar filas</button></div>
-  <div class="card"><div class="card-title">CONTEO DE ACCESORIOS <span class="chip amber" id="accCnt">${items.length}</span></div>
-    <div style="overflow-x:auto"><table class="data-table">
-      <thead><tr><th>SKU</th><th>DESCRIPCIÓN</th><th>CANT. ORACLE</th><th>CANT. CONTADA</th><th>DIF.</th><th>ESTADO</th><th>COMENTARIO</th><th></th></tr></thead>
-      <tbody>${items.map(mkRow).join('')}</tbody></table></div>
-    <button class="btn btn-sm" style="margin-top:10px" onclick="addAcc()">+ Agregar accesorio</button></div>
-  <div class="card"><div class="card-title">RESUMEN</div>
-    <div class="result-grid" id="accResult">${renderAccResult()}</div></div>`;
-}
-function loadAccPaste(){const raw=document.getElementById('accPaste').value.trim();if(!raw)return;state.visita.acc.items=raw.split('\n').map(l=>{const c=l.split('\t');return{sku:(c[0]||'').trim(),descripcion:(c[1]||'').trim(),oracle:(c[2]||'').trim(),contado:'',comentario:''};}).filter(r=>r.sku||r.descripcion);autoSave();renderStep();toast(`${state.visita.acc.items.length} accesorios cargados`);}
-function addAcc(){state.visita.acc.items.push({sku:'',descripcion:'',oracle:'',contado:'',comentario:''});autoSave();renderStep();}
-function removeAcc(i){state.visita.acc.items.splice(i,1);autoSave();renderStep();}
-function renderAccResult(){let con=0,falt=0,sob=0,tot=0;state.visita.acc.items.forEach(it=>{const o=parseFloat(it.oracle),c=parseFloat(it.contado);if(!isNaN(c))tot+=c;if(!isNaN(o)&&!isNaN(c)){const d=c-o;if(d===0)con++;else if(d<0)falt+=Math.abs(d);else sob+=d;}});return`<div class="result-box green"><div class="val">${con}</div><div class="lbl">CONCILIADOS</div></div><div class="result-box red"><div class="val">${falt}</div><div class="lbl">FALTANTE</div></div><div class="result-box amber"><div class="val">${sob}</div><div class="lbl">SOBRANTE</div></div><div class="result-box"><div class="val">${tot}</div><div class="lbl">TOTAL CONTADOS</div></div>`;}
-function recalcAcc(){state.visita.acc.items.forEach((it,i)=>{const o=parseFloat(it.oracle),c=parseFloat(it.contado),de=document.getElementById(`acc_d_${i}`),ee=document.getElementById(`acc_e_${i}`);if(de&&!isNaN(o)&&!isNaN(c)){const d=c-o;de.textContent=(d>=0?'+':'')+d;de.style.color=d===0?'var(--green)':d>0?'var(--amber)':'var(--red)';if(ee)ee.innerHTML=d===0?'<span class="chip green">OK</span>':d>0?'<span class="chip amber">Sobrante</span>':'<span class="chip red">Faltante</span>';}else if(de)de.textContent='—';});setText('accCnt',state.visita.acc.items.length);const r=document.getElementById('accResult');if(r)r.innerHTML=renderAccResult();}
+  if(!items.length){
+    return `<div class="step-header"><h2>Inv. Accesorios</h2>
+      <p>Carga el reporte de inventario en mano para comparar contra el conteo físico.</p></div>
+    <div class="card" style="text-align:center;padding:32px 24px">
+      <div style="font-size:36px;margin-bottom:10px">📂</div>
+      <div style="font-size:15px;font-weight:700;color:var(--ink);margin-bottom:6px">Cargar Inventario en Mano</div>
+      <div style="font-size:13px;color:var(--ink-soft);margin-bottom:18px">Archivo Oracle — columnas leídas: Subinventario, Localizador, Artículo, Descripción, En Mano</div>
+      <label style="cursor:pointer">
+        <input type="file" accept=".xlsx,.xls" style="display:none" onchange="cargarArchivoAcc(this)"/>
+        <span class="btn btn-primary" style="pointer-events:none">📁 Seleccionar archivo (.xlsx)</span>
+      </label>
+    </div>`;
+  }
+  let con=0,falt=0,sob=0,sinContar=0,totalEnMano=0;
+  items.forEach(it=>{
+    const o=parseFloat(it.oracle),c=parseFloat(it.contado);
+    if(!isNaN(o))totalEnMano+=o;
+    if(it.contado==='')sinContar++;
+    if(!isNaN(o)&&!isNaN(c)){const d=c-o;if(d===0)con++;else if(d<0)falt++;else sob++;}
+  });
+  const mkRow=(it,i)=>{
+    const o=parseFloat(it.oracle),c=parseFloat(it.contado);
+    const d=(!isNaN(o)&&!isNaN(c))?c-o:null;
+    const difColor=d===null?'var(--ink-muted)':d===0?'var(--green)':d>0?'var(--amber)':'var(--red)';
+    const estadoChip=d===null?'':d===0?'<span class="chip green">OK</span>':d>0?'<span class="chip amber">Sobrante</span>':'<span class="chip red">Faltante</span>';
+    const rowBg=it.manual?'background:#fffbeb':'';
+    const skuCell=it.manual
+      ?`<td style="padding:8px;font-size:12px;font-weight:600;white-space:nowrap;${rowBg}">${x(it.sku)}<span style="font-size:9px;font-weight:700;color:#92400e;background:#fef3c7;border:1px solid #fcd34d;border-radius:4px;padding:1px 4px;margin-left:5px">MANUAL</span></td>`
+      :`<td style="padding:8px;font-size:12px;font-weight:600;white-space:nowrap">${x(it.sku)}</td>`;
+    const deleteBtn=it.manual
+      ?`<td style="padding:8px;text-align:center"><button onclick="eliminarAccManual(${i})" style="background:none;border:none;cursor:pointer;color:var(--red);font-size:14px;line-height:1" title="Eliminar">✕</button></td>`
+      :`<td style="padding:8px"></td>`;
+    return `<tr style="border-bottom:1px solid var(--line);vertical-align:middle;${rowBg}">
+      ${skuCell}
+      <td style="padding:8px;font-size:11px;color:var(--ink-soft);white-space:nowrap">${x(it.subinventario)}</td>
+      <td style="padding:8px;font-size:11px;color:var(--ink-soft);white-space:nowrap">${x(it.localizador)}</td>
+      <td style="padding:8px;font-size:12px">${x(it.descripcion)}</td>
+      <td style="padding:8px;text-align:center;font-size:13px;font-weight:700">${it.oracle!==''?it.oracle:'—'}</td>
+      <td style="padding:8px;text-align:center">
+        <input type="number" min="0" value="${it.contado}" placeholder="0"
+          oninput="state.visita.acc.items[${i}].contado=this.value;recalcAcc();autoSave()"
+          style="width:75px;text-align:center;padding:5px 6px;font-size:13px;font-weight:600;border:1.5px solid ${it.contado!==''?'var(--line)':'var(--amber)'};border-radius:6px;font-family:inherit"/>
+      </td>
+      <td id="acc_d_${i}" style="padding:8px;text-align:center;font-weight:700;color:${difColor}">${d!==null?(d>=0?'+':'')+d:'—'}</td>
+      <td id="acc_e_${i}" style="padding:8px;text-align:center">${estadoChip}</td>
+      ${deleteBtn}
+    </tr>`;
+  };
+  return `<div class="step-header"><h2>Inv. Accesorios</h2>
+    <p>Registra el conteo físico. La diferencia vs. En Mano se calcula automáticamente.</p></div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:16px">
+    <div style="background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-sm);padding:12px;text-align:center">
+      <div style="font-size:24px;font-weight:800;color:var(--ink)">${totalEnMano}</div>
+      <div style="font-size:11px;font-weight:600;color:var(--ink-soft);margin-top:2px">TOTAL ACCESORIOS</div>
+    </div>
+    <div style="background:#d1fae5;border:1px solid #6ee7b7;border-radius:var(--radius-sm);padding:12px;text-align:center">
+      <div style="font-size:24px;font-weight:800;color:#065f46">${con}</div>
+      <div style="font-size:11px;font-weight:600;color:#047857;margin-top:2px">CONCILIADOS</div>
+    </div>
+    <div style="background:#fee2e2;border:1px solid #fca5a5;border-radius:var(--radius-sm);padding:12px;text-align:center">
+      <div style="font-size:24px;font-weight:800;color:#991b1b">${falt}</div>
+      <div style="font-size:11px;font-weight:600;color:#991b1b;margin-top:2px">FALTANTES</div>
+    </div>
+    <div style="background:#fef3c7;border:1px solid #fcd34d;border-radius:var(--radius-sm);padding:12px;text-align:center">
+      <div style="font-size:24px;font-weight:800;color:#92400e">${sob}</div>
+      <div style="font-size:11px;font-weight:600;color:#92400e;margin-top:2px">SOBRANTES</div>
+    </div>
 
+  </div>
+  <div class="card" style="padding:0;overflow:hidden">
+    <div style="padding:12px 16px;background:var(--surface-2);border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+      <div style="font-size:12px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em">Detalle · ${items.length} artículos</div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <label style="cursor:pointer">
+          <input type="file" accept=".xlsx,.xls" style="display:none" onchange="cargarArchivoAcc(this)"/>
+          <span class="btn btn-sm" style="pointer-events:none;font-size:12px">↺ Recargar archivo</span>
+        </label>
+        <button class="btn btn-sm" onclick="agregarAccManual()" style="font-size:12px">+ SKU Manual</button>
+        <button class="btn btn-sm" onclick="limpiarAcc()" style="font-size:12px;color:var(--red);border-color:var(--red)">✕ Limpiar</button>
+      </div>
+    </div>
+    <div style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;font-family:inherit">
+        <thead>
+          <tr style="background:var(--surface-2);border-bottom:1px solid var(--line)">
+            <th style="padding:8px;text-align:left;font-size:10px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em;white-space:nowrap">Artículo</th>
+            <th style="padding:8px;text-align:left;font-size:10px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em;white-space:nowrap">Subinventario</th>
+            <th style="padding:8px;text-align:left;font-size:10px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em">Localizador</th>
+            <th style="padding:8px;text-align:left;font-size:10px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em">Descripción</th>
+            <th style="padding:8px;text-align:center;font-size:10px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em;white-space:nowrap">En Mano</th>
+            <th style="padding:8px;text-align:center;font-size:10px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em">En Físico</th>
+            <th style="padding:8px;text-align:center;font-size:10px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em">Diferencia</th>
+            <th style="padding:8px;text-align:center;font-size:10px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em">Estado</th>
+            <th style="padding:8px;width:32px"></th>
+          </tr>
+        </thead>
+        <tbody>${items.map(mkRow).join('')}</tbody>
+      </table>
+    </div>
+  </div>`;
+}
+function recalcAcc(){
+  state.visita.acc.items.forEach((it,i)=>{
+    const o=parseFloat(it.oracle),c=parseFloat(it.contado);
+    const de=document.getElementById(`acc_d_${i}`),ee=document.getElementById(`acc_e_${i}`);
+    if(de&&!isNaN(o)&&!isNaN(c)){
+      const d=c-o;
+      de.textContent=(d>=0?'+':'')+d;
+      de.style.color=d===0?'var(--green)':d>0?'var(--amber)':'var(--red)';
+      if(ee)ee.innerHTML=d===0?'<span class="chip green">OK</span>':d>0?'<span class="chip amber">Sobrante</span>':'<span class="chip red">Faltante</span>';
+    }else if(de){de.textContent='—';de.style.color='var(--ink-muted)';}
+  });
+}
+function eliminarAccManual(i){
+  if(!confirm('¿Eliminar este artículo manual?'))return;
+  state.visita.acc.items.splice(i,1);
+  autoSave();renderStep();
+}
+
+function buildCantSummaryHTML(rp){
+  const total=rp.length;
+  if(!total)return'';
+  const cntEst=e=>rp.filter(r=>r.estatus===e).length;
+  const alC=cntEst('Al corriente'),enA=cntEst('En Atraso'),susp=cntEst('Suspendida'),canc=cntEst('Cancelada');
+  const pct=n=>total?Math.round(n/total*100)+'%':'—';
+  const cbPot=enA+susp+canc;
+  const cbPctNum=total?((cbPot/total)*100):0;
+  const cbPctStr=Math.round(cbPctNum)+'%';
+  const sev=cbPctNum===0?{lbl:'Correcto',bg:'#d1fae5',c:'#065f46'}:cbPctNum<10?{lbl:'Aceptable',bg:'#d1fae5',c:'#065f46'}:cbPctNum<20?{lbl:'Alto',bg:'#fef3c7',c:'#92400e'}:cbPctNum<30?{lbl:'Muy Alto',bg:'#fee2e2',c:'#991b1b'}:{lbl:'Crítico',bg:'#7f1d1d',c:'#fff'};
+  const isAlC=r=>r.estatus==='Al corriente';
+  const isCbPot=r=>r.estatus==='En Atraso'||r.estatus==='Suspendida'||r.estatus==='Cancelada';
+  const inc=[
+    {lbl:'Cuentas Ligadas',si:rp.filter(r=>r.cuentasLigadas==='NO').length,no:rp.filter(r=>r.cuentasLigadas==='SI'&&isAlC(r)).length,cb:rp.filter(r=>r.cuentasLigadas==='SI'&&isCbPot(r)).length},
+    {lbl:'Cotejo',si:rp.filter(r=>r.cotejo==='SI').length,no:rp.filter(r=>r.cotejo==='NO'&&isAlC(r)).length,cb:rp.filter(r=>r.cotejo==='NO'&&isCbPot(r)).length},
+    {lbl:'Llamada',si:'N/A',no:'N/A',cb:rp.filter(r=>r.llamada==='Negativa'&&isCbPot(r)).length},
+    {lbl:'Correo',si:rp.filter(r=>r.correoValidacion==='Existe').length,no:rp.filter(r=>r.correoValidacion==='No Existe'&&isAlC(r)).length,cb:rp.filter(r=>r.correoValidacion==='No Existe'&&isCbPot(r)).length},
+    {lbl:'Consumos',si:rp.filter(r=>r.consumos==='SI').length,no:rp.filter(r=>r.consumos==='NO'&&isAlC(r)).length,cb:rp.filter(r=>r.consumos==='NO'&&isCbPot(r)).length},
+    {lbl:'Expediente',si:rp.filter(r=>r.expediente).length,no:rp.filter(r=>!r.expediente&&isAlC(r)).length,cb:rp.filter(r=>!r.expediente&&isCbPot(r)).length},
+  ];
+  const thS='padding:7px 10px;font-size:10px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em;text-align:center;white-space:nowrap';
+  const tdS='padding:6px 10px;font-size:12px;text-align:center';
+  const tdLS='padding:6px 10px;font-size:12px;text-align:left';
+  return `<div style="display:grid;grid-template-columns:220px 1fr;gap:12px;margin-bottom:16px">
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div class="card" style="padding:0;overflow:hidden">
+        <div style="padding:8px 10px;background:var(--surface-2);border-bottom:1px solid var(--line);font-size:11px;font-weight:700;color:var(--ink);text-transform:uppercase;letter-spacing:.05em">Resumen Chargeback Potencial</div>
+        <table style="width:100%;border-collapse:collapse">
+          <thead><tr style="background:var(--surface-2);border-bottom:1px solid var(--line)">
+            <th style="${thS};text-align:left">Estatus</th><th style="${thS}">Cantidad</th><th style="${thS}">%</th>
+          </tr></thead>
+          <tbody>
+            ${[['Al corriente',alC],['En Atraso',enA],['Suspendida',susp],['Cancelada',canc]].map(([e,n])=>`<tr style="border-bottom:1px solid var(--line)"><td style="${tdLS}">${e}</td><td style="${tdS};font-weight:600">${n}</td><td style="${tdS}">${pct(n)}</td></tr>`).join('')}
+            <tr style="background:var(--surface-2)"><td style="${tdLS};font-weight:700">Total</td><td style="${tdS};font-weight:700">${total}</td><td></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="card" style="padding:0;overflow:hidden">
+        <div style="padding:8px 10px;background:var(--surface-2);border-bottom:1px solid var(--line);font-size:11px;font-weight:700;color:var(--ink);text-transform:uppercase;letter-spacing:.05em">Cantados</div>
+        <table style="width:100%;border-collapse:collapse">
+          <tbody>
+            <tr style="border-bottom:1px solid var(--line)"><td style="${tdLS}">Correcto</td><td style="${tdS};font-weight:700;color:#065f46">${rp.filter(r=>r.cantado==='Correcto').length}</td></tr>
+            <tr><td style="${tdLS}">Incorrecto</td><td style="${tdS};font-weight:700;color:#991b1b">${rp.filter(r=>r.cantado==='Incorrecto').length}</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div class="card" style="padding:0;overflow:hidden">
+        <div style="padding:8px 10px;background:var(--surface-2);border-bottom:1px solid var(--line);font-size:11px;font-weight:700;color:var(--ink);text-transform:uppercase;letter-spacing:.05em">Resumen de Incidencias en Supervisión</div>
+        <table style="width:100%;border-collapse:collapse">
+          <thead><tr style="background:var(--surface-2);border-bottom:1px solid var(--line)">
+            <th style="${thS};text-align:left">Tipo</th>
+            <th style="${thS}">Sin Incidencia</th>
+            <th style="${thS}">Con Incidencia</th>
+            <th style="${thS};background:#7f1d1d;color:#fff;cursor:help" title="Incidencias en Cuentas que representan CHARGEBACK POTENCIAL">CHARGEBACK POTENCIAL ⓘ</th>
+          </tr></thead>
+          <tbody>
+            ${inc.map(({lbl,si,no,cb})=>`<tr style="border-bottom:1px solid var(--line)"><td style="${tdLS}">${lbl}</td><td style="${tdS}">${si}</td><td style="${tdS}">${no}</td><td style="${tdS};background:#fef2f2;font-weight:600;color:#991b1b">${cb}</td></tr>`).join('')}
+            <tr style="background:var(--surface-2)"><td style="${tdLS};font-weight:700">Total de Incidencias</td><td style="${tdS};font-weight:700">${inc.reduce((s,r)=>s+(typeof r.si==='number'?r.si:0),0)}</td><td style="${tdS};font-weight:700">${inc.reduce((s,r)=>s+(typeof r.no==='number'?r.no:0),0)}</td><td style="${tdS};font-weight:700;background:#fef2f2;color:#991b1b">${inc.reduce((s,r)=>s+(typeof r.cb==='number'?r.cb:0),0)}</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="card" style="padding:12px 18px;display:flex;align-items:center;gap:16px">
+        <div style="font-size:14px;font-weight:800;color:var(--ink);line-height:1.2">Chargeback<br>Potencial</div>
+        <div style="font-size:28px;font-weight:900;color:var(--ink)">${cbPctStr}</div>
+        <div style="background:${sev.bg};color:${sev.c};padding:5px 14px;border-radius:99px;font-size:13px;font-weight:800">${sev.lbl}</div>
+      </div>
+    </div>
+  </div>`;
+}
+function updateCantSummary(){
+  const el=document.getElementById('cant-summary');
+  if(!el)return;
+  const c=state.visita.cantados;
+  const semana=parseInt(c.semana)||getNumSemana(-4);
+  const rp=(c.registros||[]).filter(r=>parseSemana(r.semana)===semana);
+  el.innerHTML=buildCantSummaryHTML(rp);
+}
 /* ---- STEP 5: CANTADOS ---- */
 function renderCantados(){
-  const c=state.visita.cantados, regs=c.registros||[];
-  const bnd=regs.filter(r=>r.consumos==='NO'||r.dobleCotejo==='NO'||r.referenciasReales==='NO').length;
-  const mkReg=(r,i)=>`<tr>
-    <td>${x(r.cliente||'')}</td><td>${x(r.cuenta||'')}</td><td>${x(r.telefono||'')}</td>
-    <td style="white-space:nowrap">${r.fecha||''}</td><td>${r.semana||''}</td><td>${x(r.equipo||'')}</td>
-    <td><div class="checklist-radio-group">${['SI','NO'].map(v=>`<button class="radio-btn ${v==='SI'?'si':'no'} ${r.consumos===v?'active':''}" onclick="setCant(${i},'consumos','${v}')">${v}</button>`).join('')}</div></td>
-    <td><div class="checklist-radio-group">${['SI','NO'].map(v=>`<button class="radio-btn ${v==='SI'?'si':'no'} ${r.dobleCotejo===v?'active':''}" onclick="setCant(${i},'dobleCotejo','${v}')">${v}</button>`).join('')}</div></td>
-    <td><div class="checklist-radio-group">${['SI','NO'].map(v=>`<button class="radio-btn ${v==='SI'?'si':'no'} ${r.referenciasReales===v?'active':''}" onclick="setCant(${i},'referenciasReales','${v}')">${v}</button>`).join('')}</div></td>
-    <td><select onchange="setCant(${i},'estatusLinea',this.value)"><option value="">—</option>${['Activa','Suspendida','Cancelada'].map(o=>`<option ${r.estatusLinea===o?'selected':''} value="${o}">${o}</option>`).join('')}</select></td>
-    <td><select onchange="setCant(${i},'estatusCuenta',this.value)"><option value="">—</option>${['Al corriente','Con atraso'].map(o=>`<option ${r.estatusCuenta===o?'selected':''} value="${o}">${o}</option>`).join('')}</select></td>
-    <td><input value="${x(r.comentario||'')}" oninput="state.visita.cantados.registros[${i}].comentario=this.value;autoSave()"/></td>
-    <td><button class="icon-btn" onclick="removeCant(${i})">✕</button></td></tr>`;
+  const c=state.visita.cantados;
+  const regs=c.registros||[];
+  const semana=parseInt(c.semana)||getNumSemana(-4);
+  const regsIdx=regs.map((r,i)=>({r,i})).filter(({r})=>parseSemana(r.semana)===semana);
+  const rp2=regsIdx.map(({r})=>r);
+  const isAlC2=r=>r.estatus==='Al corriente';
+  const sinIncidencia=rp2.filter(r=>r.cuentasLigadas==='NO').length+rp2.filter(r=>r.cotejo==='SI').length+rp2.filter(r=>r.correoValidacion==='Existe').length+rp2.filter(r=>r.consumos==='SI').length+rp2.filter(r=>r.expediente).length;
+  const conIncidencia=rp2.filter(r=>r.cuentasLigadas==='SI'&&isAlC2(r)).length+rp2.filter(r=>r.cotejo==='NO'&&isAlC2(r)).length+rp2.filter(r=>r.correoValidacion==='No Existe'&&isAlC2(r)).length+rp2.filter(r=>r.consumos==='NO'&&isAlC2(r)).length+rp2.filter(r=>!r.expediente&&isAlC2(r)).length;
+  const sinValidar=regsIdx.filter(({r})=>!r.cantado).length;
+  const bnd=conIncidencia;
+  const wkNow=getNumSemana();
+  const semanaOpts=Array.from({length:wkNow},(_,k)=>k+1).map(w=>`<option value="${w}" ${w===semana?'selected':''}>${labelSemana(w)}</option>`).join('');
+  const esBandera=r=>r.cantado==='Incorrecto'||r.estatus==='En Atraso'||r.estatus==='Suspendida'||r.estatus==='Cancelada';
+  const mkReg=({r,i})=>{
+    const inc=r.cantado==='Incorrecto';
+    const editCell=(val,field,ph='')=>inc
+      ?`<input value="${x(val||'')}" placeholder="${ph}" oninput="state.visita.cantados.registros[${i}].${field}=this.value;autoSave()" style="width:100%;min-width:70px;font-family:inherit;font-size:11px;padding:3px 5px;border:1.5px solid var(--amber);border-radius:4px;background:#fffbeb"/>`
+      :`<span style="font-size:12px">${x(val||'')}</span>`;
+    const siNo=(field,val)=>`<div id="cant_${i}_${field}" class="checklist-radio-group">${['SI','NO'].map(v=>`<button class="radio-btn ${v==='SI'?'si':'no'} ${val===v?'active':''}" data-val="${v}" onclick="setCant(${i},'${field}','${v}')">${v}</button>`).join('')}</div>`;
+    return `<tr id="cant_row_${i}" style="border-bottom:1px solid var(--line);vertical-align:middle${esBandera(r)?';background:#fff1f2':''}">
+      <td style="padding:8px;white-space:nowrap">${editCell(r.fecha,'fecha','DD/MM/AAAA')}</td>
+      <td style="padding:8px;white-space:nowrap;font-family:monospace">${editCell(r.folio,'folio','Folio')}</td>
+      <td style="padding:8px;white-space:nowrap">${editCell(r.telefono,'telefono','Teléfono')}</td>
+      <td style="padding:8px;white-space:nowrap">${editCell(r.cuenta,'cuenta','Cuenta')}</td>
+      <td style="padding:8px;white-space:nowrap">${editCell(r.plan,'plan','Plan')}</td>
+      <td style="padding:8px">${editCell(r.equipo,'equipo','Equipo')}</td>
+      <td style="padding:8px;font-size:12px;white-space:nowrap">${x(r.ejecutivo||'')}</td>
+      <td style="padding:6px;text-align:center">
+        <div id="cant_${i}_cantado" class="checklist-radio-group">
+          ${['Correcto','Incorrecto'].map(v=>`<button class="radio-btn ${v==='Correcto'?'si':'no'} ${r.cantado===v?'active':''}" data-val="${v}" onclick="setCant(${i},'cantado','${v}')" style="font-size:11px">${v}</button>`).join('')}
+        </div>
+      </td>
+      <td style="padding:6px;min-width:110px"><input value="${x(r.cliente||'')}" placeholder="Nombre cliente" oninput="state.visita.cantados.registros[${i}].cliente=this.value;autoSave()" style="width:100%;font-family:inherit;font-size:11px;padding:3px 5px;border:1px solid var(--line);border-radius:4px"/></td>
+      <td style="padding:6px;white-space:nowrap"><input value="${x(r.telefonoFijo||'')}" placeholder="Tel. fijo" oninput="state.visita.cantados.registros[${i}].telefonoFijo=this.value;autoSave()" style="width:90px;font-family:inherit;font-size:11px;padding:3px 5px;border:1px solid var(--line);border-radius:4px"/></td>
+      <td style="padding:6px;min-width:120px"><input value="${x(r.correoCliente||'')}" placeholder="correo@..." oninput="state.visita.cantados.registros[${i}].correoCliente=this.value;autoSave()" style="width:100%;font-family:inherit;font-size:11px;padding:3px 5px;border:1px solid var(--line);border-radius:4px"/></td>
+      <td style="padding:6px"><select onchange="setCant(${i},'estatus',this.value)" style="font-family:inherit;font-size:11px;padding:3px 5px;border:1px solid var(--line);border-radius:4px;min-width:100px"><option value="">—</option>${['Al corriente','En Atraso','Suspendida','Cancelada'].map(o=>`<option ${r.estatus===o?'selected':''} value="${o}">${o}</option>`).join('')}</select></td>
+      <td style="padding:6px;text-align:center">${siNo('cuentasLigadas',r.cuentasLigadas)}</td>
+      <td style="padding:6px;text-align:center">${siNo('cotejo',r.cotejo)}</td>
+      <td id="cant_${i}_llamada_cell" style="padding:6px">${r.estatus==='Al corriente'?`<span style="font-size:12px;color:var(--ink-muted);font-style:italic">No Aplica</span>`:`<select onchange="setCant(${i},'llamada',this.value)" style="font-family:inherit;font-size:11px;padding:3px 5px;border:1px solid var(--line);border-radius:4px"><option value="">—</option>${['Positiva','Negativa'].map(o=>`<option ${r.llamada===o?'selected':''} value="${o}">${o}</option>`).join('')}</select>`}</td>
+      <td style="padding:6px"><select onchange="setCant(${i},'correoValidacion',this.value)" style="font-family:inherit;font-size:11px;padding:3px 5px;border:1px solid var(--line);border-radius:4px"><option value="">—</option>${['Existe','No Existe'].map(o=>`<option ${r.correoValidacion===o?'selected':''} value="${o}">${o}</option>`).join('')}</select></td>
+      <td style="padding:6px;text-align:center">${siNo('consumos',r.consumos)}</td>
+      <td style="padding:6px"><select onchange="setCant(${i},'expediente',this.value)" style="font-family:inherit;font-size:11px;padding:3px 5px;border:1px solid var(--line);border-radius:4px"><option value="">—</option>${['Físico','Digital'].map(o=>`<option ${r.expediente===o?'selected':''} value="${o}">${o}</option>`).join('')}</select></td>
+      <td style="padding:6px;min-width:120px"><input value="${x(r.comentario||'')}" placeholder="Comentario..." oninput="state.visita.cantados.registros[${i}].comentario=this.value;autoSave()" style="width:100%;font-family:inherit;font-size:11px;padding:3px 5px;border:1px solid var(--line);border-radius:4px"/></td>
+      <td style="padding:6px;text-align:center"><button onclick="removeCant(${i})" style="background:none;border:none;cursor:pointer;color:var(--red);font-size:14px;line-height:1">✕</button></td>
+    </tr>`;
+  };
   return `<div class="step-header"><h2>Revisión de Líneas</h2>
     <p>Verificación de ventas pospago para detectar posibles fraudes o irregularidades.</p></div>
-  <div class="card">
-    <div class="form-grid">
-      <div class="field-inline"><label>Semana</label>
-        <input value="${x(c.semana||'')}" oninput="state.visita.cantados.semana=this.value;autoSave()"/></div>
+  <div class="card" style="margin-bottom:12px">
+    <div style="font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Semana a revisar</div>
+    <select onchange="state.visita.cantados.semana=parseInt(this.value);autoSave();renderStep()" style="font-family:inherit;font-size:14px;padding:9px 12px;border:1.5px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);width:100%;max-width:380px">
+      ${semanaOpts}
+    </select>
+  </div>
+  ${!c.archivoCargado?`
+  <div class="card" style="text-align:center;padding:32px 24px">
+    <div style="font-size:36px;margin-bottom:10px">📂</div>
+    <div style="font-size:15px;font-weight:700;color:var(--ink);margin-bottom:6px">Cargar Reporte de Cantados</div>
+    <div style="font-size:13px;color:var(--ink-soft);margin-bottom:18px">Se filtra por semana seleccionada y por tienda. Puedes cargar el archivo completo.</div>
+    <label style="cursor:pointer">
+      <input type="file" accept=".xlsx,.xls" style="display:none" onchange="loadCantados(event)"/>
+      <span class="btn btn-primary" style="pointer-events:none">📁 Seleccionar archivo (.xlsx)</span>
+    </label>
+  </div>`:`
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:16px">
+    <div style="background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-sm);padding:12px;text-align:center">
+      <div style="font-size:24px;font-weight:800;color:var(--ink)">${regsIdx.length}</div>
+      <div style="font-size:11px;font-weight:600;color:var(--ink-soft);margin-top:2px">CANTADOS</div>
     </div>
-    <div class="upload-area" style="margin-top:12px" onclick="document.getElementById('cantFile').click()">
-      <input type="file" id="cantFile" accept=".xlsx,.xls" onchange="loadCantados(event)" style="display:none"/>
-      <div>📁 <strong>Cargar archivo de Cantados (.xlsx)</strong></div>
-      <div class="upload-label">Se filtra automáticamente por el nombre de tienda de Datos Generales.</div>
-    </div></div>
-  <div class="card">
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap">
-      <div class="card-title" style="margin:0">REGISTROS <span class="chip amber">${regs.length}</span></div>
-      ${bnd>0?`<span class="chip red">⚑ ${bnd} con bandera</span>`:''}
+    <div style="background:#d1fae5;border:1px solid #6ee7b7;border-radius:var(--radius-sm);padding:12px;text-align:center">
+      <div style="font-size:24px;font-weight:800;color:#065f46">${sinIncidencia}</div>
+      <div style="font-size:11px;font-weight:600;color:#047857;margin-top:2px">SIN INCIDENCIA</div>
     </div>
-    <div style="overflow-x:auto"><table class="data-table">
-      <thead><tr><th>CLIENTE</th><th>CUENTA</th><th>TELÉFONO</th><th>FECHA</th><th>SEMANA</th><th>EQUIPO</th><th>¿CONSUMOS?</th><th>¿DOBLE COTEJO?</th><th>¿REFERENCIAS REALES?</th><th>ESTATUS</th><th>ESTATUS CUENTA</th><th>COMENTARIOS</th><th></th></tr></thead>
-      <tbody>${regs.map(mkReg).join('')}</tbody></table></div>
-    <button class="btn btn-sm" style="margin-top:10px" onclick="addCant()">+ Agregar registro</button></div>`;
+    <div style="background:#fee2e2;border:1px solid #fca5a5;border-radius:var(--radius-sm);padding:12px;text-align:center">
+      <div style="font-size:24px;font-weight:800;color:#991b1b">${conIncidencia}</div>
+      <div style="font-size:11px;font-weight:600;color:#991b1b;margin-top:2px">CON INCIDENCIA</div>
+    </div>
+    <div style="background:#fef3c7;border:1px solid #fcd34d;border-radius:var(--radius-sm);padding:12px;text-align:center">
+      <div style="font-size:24px;font-weight:800;color:#92400e">${sinValidar}</div>
+      <div style="font-size:11px;font-weight:600;color:#92400e;margin-top:2px">SIN VALIDAR</div>
+    </div>
+  </div>
+  <div id="cant-summary"></div>
+  <div class="card" style="padding:0;overflow:hidden">
+    <div style="padding:12px 16px;background:var(--surface-2);border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+      <div style="font-size:12px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em">
+        ${labelSemana(semana)} · ${regsIdx.length} registros
+
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-sm" style="font-size:12px" onclick="addCant()">+ Agregar</button>
+        <label style="cursor:pointer">
+          <input type="file" accept=".xlsx,.xls" style="display:none" onchange="loadCantados(event)"/>
+          <span class="btn btn-sm" style="pointer-events:none;font-size:12px">↺ Recargar</span>
+        </label>
+      </div>
+    </div>
+    ${regsIdx.length?`<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-family:inherit">
+      <thead><tr style="background:var(--surface-2);border-bottom:1px solid var(--line)">
+        <th style="padding:8px;text-align:left;font-size:10px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em;white-space:nowrap">Fecha</th>
+        <th style="padding:8px;text-align:left;font-size:10px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em">Folio</th>
+        <th style="padding:8px;text-align:left;font-size:10px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em">Teléfono</th>
+        <th style="padding:8px;text-align:left;font-size:10px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em">Cuenta</th>
+        <th style="padding:8px;text-align:left;font-size:10px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em;white-space:nowrap">Plan</th>
+        <th style="padding:8px;text-align:left;font-size:10px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em">Equipo</th>
+        <th style="padding:8px;text-align:left;font-size:10px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em">Ejecutivo</th>
+        <th style="padding:8px;text-align:center;font-size:10px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em">Cantado</th>
+        <th style="padding:8px;text-align:left;font-size:10px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em">Cliente</th>
+        <th style="padding:8px;text-align:left;font-size:10px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em;white-space:nowrap">Tel. Fijo</th>
+        <th style="padding:8px;text-align:left;font-size:10px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em">Correo</th>
+        <th style="padding:8px;text-align:left;font-size:10px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em">Estatus</th>
+        <th style="padding:8px;text-align:center;font-size:10px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em;white-space:nowrap">Ctas. Ligadas</th>
+        <th style="padding:8px;text-align:center;font-size:10px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em">Cotejo</th>
+        <th style="padding:8px;text-align:left;font-size:10px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em">Llamada</th>
+        <th style="padding:8px;text-align:left;font-size:10px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em">Correo Val.</th>
+        <th style="padding:8px;text-align:center;font-size:10px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em">Consumos</th>
+        <th style="padding:8px;text-align:left;font-size:10px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em">Expediente</th>
+        <th style="padding:8px;text-align:left;font-size:10px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em">Comentarios</th>
+        <th style="padding:8px;width:32px"></th>
+      </tr></thead>
+      <tbody>${regsIdx.map(mkReg).join('')}</tbody>
+    </table></div>`:`<div style="padding:32px;text-align:center;color:var(--ink-muted);font-size:14px">No hay registros para ${labelSemana(semana)}</div>`}
+  </div>`}`;
 }
-function loadCantados(evt){const f=evt.target.files[0];if(!f)return;const r=new FileReader();r.onload=e=>{try{const wb=XLSX.read(e.target.result,{type:'binary'});const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:''});const fc=(row,ns)=>{for(const n of ns){const v=row[n];if(v!==undefined)return String(v).trim();}return '';};const tienda=(state.visita.general.tienda||'').toLowerCase().trim();let flt=rows;if(tienda){flt=rows.filter(r=>{const t=fc(r,['Tienda','TIENDA','Punto de Venta','PDV']);return t.toLowerCase().includes(tienda)||tienda.includes(t.toLowerCase());});if(!flt.length)flt=rows;}state.visita.cantados.registros=flt.map(r=>({cliente:fc(r,['Cliente','CLIENTE','Nombre','Nombre Completo']),cuenta:fc(r,['Cuenta','CUENTA','No. Cuenta']),telefono:fc(r,['Teléfono','Telefono','Tel']),fecha:fc(r,['Fecha','FECHA','Fecha Venta']),semana:fc(r,['Semana','SEMANA']),equipo:fc(r,['Equipo','EQUIPO','Modelo','Artículo']),consumos:null,dobleCotejo:null,referenciasReales:null,estatusLinea:'',estatusCuenta:'',comentario:''}));autoSave();renderStep();toast(`${state.visita.cantados.registros.length} registros cargados`);}catch{toast('Error al leer el archivo');}};r.readAsBinaryString(f);}
-function setCant(i,campo,val){state.visita.cantados.registros[i][campo]=val;autoSave();renderStep();}
-function addCant(){state.visita.cantados.registros.push({cliente:'',cuenta:'',telefono:'',fecha:'',semana:'',equipo:'',consumos:null,dobleCotejo:null,referenciasReales:null,estatusLinea:'',estatusCuenta:'',comentario:''});autoSave();renderStep();}
+function loadCantados(evt){
+  const f=evt.target.files[0];if(!f)return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{
+      const wb=XLSX.read(e.target.result,{type:'binary'});
+      const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:''});
+      const fc=(row,ns)=>{for(const n of ns){const v=row[n];if(v!==undefined)return String(v).trim();}return '';};
+      const tienda=(state.visita.general.tienda||'').toLowerCase().trim();
+      let flt=rows;
+      if(tienda){
+        flt=rows.filter(r=>{const t=fc(r,['Tienda','TIENDA','Punto de Venta','PDV']);return t.toLowerCase().includes(tienda)||tienda.includes(t.toLowerCase());});
+        if(!flt.length)flt=rows;
+      }
+      state.visita.cantados.registros=flt.map(r=>({
+        fecha:(fc(r,['Fecha','FECHA','Fecha Venta'])||'').split(' ')[0],
+        folio:fc(r,['Folio','FOLIO']),
+        telefono:fc(r,['Numero Telefonico','Número Telefónico','Teléfono','Telefono','Tel']),
+        cuenta:fc(r,['Cuenta','CUENTA','No. Cuenta']),
+        plan:fc(r,['Plan Tarifario','Plan','PLAN']),
+        equipo:fc(r,['Equipo','EQUIPO','Modelo','Artículo'])||'PROPIO',
+        ejecutivo:[fc(r,['Nombre']),fc(r,['Apellido Paterno']),fc(r,['Apellido Materno'])].filter(Boolean).join(' '),
+        semana:parseSemana(fc(r,['Semana','SEMANA'])),
+        cantado:null,cliente:'',telefonoFijo:'',correoCliente:'',estatus:'',
+        cuentasLigadas:null,cotejo:null,llamada:'',correoValidacion:'',
+        consumos:null,expediente:'',comentario:''
+      }));
+      state.visita.cantados.archivoCargado=true;
+      autoSave();renderStep();
+      toast(`${state.visita.cantados.registros.length} registros cargados`);
+    }catch(err){toast('Error al leer el archivo: '+err.message);}
+  };
+  reader.readAsBinaryString(f);
+}
+function setCant(i,campo,val){
+  state.visita.cantados.registros[i][campo]=val;
+  autoSave();
+  if(campo==='cantado'){renderStep();return;}
+  const g=document.getElementById(`cant_${i}_${campo}`);
+  if(g)g.querySelectorAll('.radio-btn').forEach(b=>b.classList.toggle('active',b.dataset.val===val));
+  const reg=state.visita.cantados.registros[i];
+  if(campo==='estatus'){
+    const lc=document.getElementById(`cant_${i}_llamada_cell`);
+    if(lc){
+      if(val==='Al corriente'){
+        reg.llamada='N/A';autoSave();
+        lc.innerHTML=`<span style="font-size:12px;color:var(--ink-muted);font-style:italic">No Aplica</span>`;
+      }else{
+        if(reg.llamada==='N/A')reg.llamada='';
+        lc.innerHTML=`<select onchange="setCant(${i},'llamada',this.value)" style="font-family:inherit;font-size:11px;padding:3px 5px;border:1px solid var(--line);border-radius:4px"><option value="">—</option>${['Positiva','Negativa'].map(o=>`<option${reg.llamada===o?' selected':''} value="${o}">${o}</option>`).join('')}</select>`;
+      }
+    }
+  }
+  const bnd=reg.cantado==='Incorrecto'||reg.estatus==='En Atraso'||reg.estatus==='Suspendida'||reg.estatus==='Cancelada';
+  const row=document.getElementById(`cant_row_${i}`);
+  if(row)row.style.background=bnd?'#fff1f2':'';
+  updateCantSummary();
+}
+function addCant(){
+  const semana=parseInt(state.visita.cantados.semana)||getNumSemana(-4);
+  state.visita.cantados.registros.push({fecha:'',folio:'',telefono:'',cuenta:'',plan:'',equipo:'PROPIO',ejecutivo:'',semana,cantado:null,cliente:'',telefonoFijo:'',correoCliente:'',estatus:'',cuentasLigadas:null,cotejo:null,llamada:'',correoValidacion:'',consumos:null,expediente:'',comentario:''});
+  autoSave();renderStep();
+}
 function removeCant(i){state.visita.cantados.registros.splice(i,1);autoSave();renderStep();}
 
 /* ---- STEP 6: RESUMEN ---- */
@@ -2591,7 +3132,7 @@ function renderResumen(){
   const oI=v.conciliacion.oracleItems.map(i=>i.imei);
   const fI=oI.filter(i=>!v.conciliacion.escaneados.includes(i)).length;
   const fA=v.acc.items.filter(it=>{const o=parseFloat(it.oracle),c=parseFloat(it.contado);return !isNaN(o)&&!isNaN(c)&&c<o;}).length;
-  const bnd=(v.cantados.registros||[]).filter(r=>r.consumos==='NO'||r.dobleCotejo==='NO'||r.referenciasReales==='NO').length;
+  const bnd=(v.cantados.registros||[]).filter(r=>r.cantado==='Incorrecto'||r.estatus==='En Atraso'||r.estatus==='Suspendida'||r.estatus==='Cancelada').length;
 
   // Banner de estado
   let bannerHtml='';
@@ -2653,62 +3194,546 @@ function renderResumen(){
    PDF
    ============================================================ */
 function generarPDF(){
-  const{jsPDF}=window.jspdf;
-  const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'letter'});
-  const v=state.visita, W=215.9, M=15; let y=20;
-  const addPage=()=>{doc.addPage();y=20;};
-  const checkY=(n=20)=>{if(y+n>270)addPage();};
-  doc.setFillColor(244,121,32);doc.rect(0,0,W,14,'F');
-  doc.setTextColor(255,255,255);doc.setFontSize(11);doc.setFont(undefined,'bold');
-  doc.text('PRIME MX · Supervisión de Tiendas',M,9);
-  doc.setFontSize(8);doc.setFont(undefined,'normal');
-  doc.text(`${v.general.tienda||'Sin tienda'} | ${v.general.fecha||'—'} | ${v.general.gerenteRegional||'—'}`,W-M,9,{align:'right'});
-  doc.setTextColor(21,23,27);y=22;
-  const title=t=>{checkY(12);doc.setFontSize(10);doc.setFont(undefined,'bold');doc.setFillColor(244,121,32);doc.rect(M,y,W-M*2,6,'F');doc.setTextColor(255,255,255);doc.text(t,M+3,y+4.2);doc.setTextColor(21,23,27);y+=8;};
-  const row=(l,val)=>{checkY(7);doc.setFontSize(8);doc.setFont(undefined,'bold');doc.text(l+':',M,y);doc.setFont(undefined,'normal');doc.text(String(val||'—'),100,y);y+=5.5;};
-  title('DATOS GENERALES');
-  row('Tienda',v.general.tienda);row('Fecha',v.general.fecha);
-  row('Gerente de Tienda',v.general.gerenteTienda);row('Gerente Regional',v.general.gerenteRegional);y+=4;
-  title('ARQUEO DE CAJA');
+  const v=state.visita;
+  // Arqueo
   const a=v.arqueo;
   const totB=[1000,500,200,100,50,20].reduce((s,d)=>s+(parseFloat(a.billetes[d])||0)*d,0);
   const totM=[20,10,5,2,1].reduce((s,d)=>s+(parseFloat(a.monedas[d])||0)*d,0);
   const ef=totB+totM, vou=parseFloat(a.vouchers)||0, tot=ef+vou;
   const ing=parseFloat(a.ingresosReporte)||0, dif=tot-ing;
-  row('Total Efectivo (Billetes + Monedas)',fmt(ef));
-  row("Total Voucher's TDC y TDB",fmt(vou));
-  row("Efectivo + Voucher's TDC y TDB",fmt(tot));
-  row('Ingresos del día según reporte',fmt(ing));
-  row('SOBRANTE / FALTANTE',fmt(dif));
-  if(a.explicacionDiferencia)row('Explicación diferencia',a.explicacionDiferencia);
-  y+=4;doc.setFontSize(8);doc.setFont(undefined,'bold');doc.text('Detalle Billetes:',M,y);y+=5;
-  [[1000,'$1,000'],[500,'$500'],[200,'$200'],[100,'$100'],[50,'$50'],[20,'$20']].forEach(([d,l])=>{const c=parseFloat(a.billetes[d])||0;if(c>0){checkY(5);doc.setFont(undefined,'normal');doc.text(`  ${l} × ${c} = ${fmt(c*d)}`,M,y);y+=4.5;}});
-  y+=2;doc.setFont(undefined,'bold');doc.text('Detalle Monedas:',M,y);y+=5;
-  [[20,'$20'],[10,'$10'],[5,'$5'],[2,'$2'],[1,'$1']].forEach(([d,l])=>{const c=parseFloat(a.monedas[d])||0;if(c>0){checkY(5);doc.setFont(undefined,'normal');doc.text(`  ${l} × ${c} = ${fmt(c*d)}`,M,y);y+=4.5;}});
-  y+=4;title('CONCILIACIÓN DE INVENTARIO');
-  const oI=v.conciliacion.oracleItems.map(i=>i.imei),eI=v.conciliacion.escaneados;
-  row('IMEIs en Oracle',oI.length);row('IMEIs escaneados',eI.length);
-  row('Conciliados',eI.filter(i=>oI.includes(i)).length);
-  row('Faltantes',oI.filter(i=>!eI.includes(i)).length);
-  row('Sobrantes',eI.filter(i=>!oI.includes(i)).length);y+=4;
-  title('ACCESORIOS');
-  if(v.acc.items.length)v.acc.items.forEach(it=>{checkY(6);doc.setFontSize(8);doc.setFont(undefined,'normal');const d=(!isNaN(parseFloat(it.oracle))&&!isNaN(parseFloat(it.contado)))?String(parseFloat(it.contado)-parseFloat(it.oracle)):'—';doc.text(`${it.sku||'—'} | ${it.descripcion||'—'} | Oracle:${it.oracle||'—'} Contado:${it.contado||'—'} Dif:${d}`,M,y);y+=5;});
-  else{doc.setFontSize(8);doc.text('Sin accesorios registrados',M,y);y+=5;}y+=4;
-  title('CANTADOS POSPAGO');
+  // Conciliación
+  const oI=(v.conciliacion.oracleItems||[]).map(i=>i.imei), eI=v.conciliacion.escaneados||[];
+  // Accesorios
+  const accItems=v.acc.items||[];
+  const accOracle=accItems.reduce((s,i)=>s+(parseFloat(i.oracle)||0),0);
+  const accConc=accItems.filter(i=>{const o=parseFloat(i.oracle),c=parseFloat(i.contado);return !isNaN(o)&&!isNaN(c)&&c===o;}).length;
+  const accFalt=accItems.filter(i=>{const o=parseFloat(i.oracle),c=parseFloat(i.contado);return !isNaN(o)&&!isNaN(c)&&c<o;}).length;
+  const accSob=accItems.filter(i=>{const o=parseFloat(i.oracle),c=parseFloat(i.contado);return !isNaN(o)&&!isNaN(c)&&c>o;}).length;
+  // Cantados
+  const semana=parseInt(v.cantados.semana)||getNumSemana(-4);
   const regs=v.cantados.registros||[];
-  row('Semana',v.cantados.semana);row('Total registros',regs.length);
-  row('Con bandera',regs.filter(r=>r.consumos==='NO'||r.dobleCotejo==='NO'||r.referenciasReales==='NO').length);
-  if(regs.length){y+=4;regs.forEach((r,ri)=>{checkY(6);doc.setFontSize(7);doc.setFont(undefined,'normal');doc.text(`${ri+1}. ${r.cliente||'—'} | ${r.cuenta||''} | Consumos:${r.consumos||'—'} | DblCotejo:${r.dobleCotejo||'—'} | Refs:${r.referenciasReales||'—'}`,M,y);y+=4.5;});}
-  checkY(40);y+=6;doc.setDrawColor(225,227,232);doc.line(M,y,W-M,y);y+=8;
-  doc.setFontSize(8);doc.setFont(undefined,'bold');doc.text('FIRMAS',M,y);y+=8;
-  const fw=(W-M*2-10)/2;
-  doc.line(M,y,M+fw,y);doc.line(M+fw+10,y,M+fw*2+10,y);y+=4;
-  doc.setFont(undefined,'normal');
-  doc.text('Gerente de Tienda',M,y);doc.text('Gerente Regional',M+fw+10,y);y+=4;
-  doc.text(v.general.gerenteTienda||'_______________',M,y);doc.text(v.general.gerenteRegional||'_______________',M+fw+10,y);
-  const tienda=(v.general.tienda||'tienda').replace(/\s+/g,'_');
-  const fecha=(v.general.fecha||new Date().toISOString().slice(0,10)).replace(/-/g,'');
-  doc.save(`supervision_${tienda}_${fecha}.pdf`);toast('PDF descargado');
+  const rp=regs.filter(r=>parseSemana(r.semana)===semana);
+  const isAlC=r=>r.estatus==='Al corriente';
+  const isCbPot=r=>r.estatus==='En Atraso'||r.estatus==='Suspendida'||r.estatus==='Cancelada';
+  const incRows=[
+    {lbl:'Cuentas Ligadas',si:rp.filter(r=>r.cuentasLigadas==='NO').length,no:rp.filter(r=>r.cuentasLigadas==='SI'&&isAlC(r)).length,cb:rp.filter(r=>r.cuentasLigadas==='SI'&&isCbPot(r)).length},
+    {lbl:'Cotejo',si:rp.filter(r=>r.cotejo==='SI').length,no:rp.filter(r=>r.cotejo==='NO'&&isAlC(r)).length,cb:rp.filter(r=>r.cotejo==='NO'&&isCbPot(r)).length},
+    {lbl:'Llamada',si:'N/A',no:'N/A',cb:rp.filter(r=>r.llamada==='Negativa'&&isCbPot(r)).length},
+    {lbl:'Correo',si:rp.filter(r=>r.correoValidacion==='Existe').length,no:rp.filter(r=>r.correoValidacion==='No Existe'&&isAlC(r)).length,cb:rp.filter(r=>r.correoValidacion==='No Existe'&&isCbPot(r)).length},
+    {lbl:'Consumos',si:rp.filter(r=>r.consumos==='SI').length,no:rp.filter(r=>r.consumos==='NO'&&isAlC(r)).length,cb:rp.filter(r=>r.consumos==='NO'&&isCbPot(r)).length},
+    {lbl:'Expediente',si:rp.filter(r=>r.expediente).length,no:rp.filter(r=>!r.expediente&&isAlC(r)).length,cb:rp.filter(r=>!r.expediente&&isCbPot(r)).length},
+  ];
+  const totSi=incRows.reduce((s,r)=>s+(typeof r.si==='number'?r.si:0),0);
+  const totNo=incRows.reduce((s,r)=>s+(typeof r.no==='number'?r.no:0),0);
+  const totCb=incRows.reduce((s,r)=>s+(typeof r.cb==='number'?r.cb:0),0);
+  const cbPct=rp.length?Math.round((rp.filter(isCbPot).length/rp.length)*100):0;
+  const cbLevel=cbPct>=20?'Alto':cbPct>=10?'Medio':'Bajo';
+  const cbColor={'Alto':'#dc2626','Medio':'#d97706','Bajo':'#16a34a'}[cbLevel];
+  const cbBg={'Alto':'#fee2e2','Medio':'#fef9c3','Bajo':'#dcfce7'}[cbLevel];
+
+  const esc=s=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const card=(n,l,color='#111827')=>`<div class="kcard"><div class="kn" style="color:${color}">${esc(n)}</div><div class="kl">${esc(l)}</div></div>`;
+  const irow=(l,v1,v2,v3)=>`<tr><td>${esc(l)}</td><td class="tc">${v1}</td><td class="tc">${v2}</td><td class="tc cb-col">${v3||0}</td></tr>`;
+
+  const sobrantes=eI.filter(i=>!oI.includes(i));
+  const serializadosTable=(oI.length||eI.length)?`
+  <table><thead>
+    <tr class="cont-row"><td colspan="4">Inv. Serializados — continuación en pág. siguiente</td></tr>
+    <tr><th>IMEI</th><th>Artículo</th><th>Localizador</th><th class="tc">Estado</th></tr>
+  </thead><tbody>
+  ${(v.conciliacion.oracleItems||[]).map(it=>{
+    const conc=eI.includes(it.imei);
+    return `<tr${conc?'':' class="flag"'}><td>${esc(it.imei)}</td><td>${esc(it.articulo||'—')}</td><td>${esc(it.localizador||'—')}</td><td class="tc"><span class="chip ${conc?'chip-ok':'chip-err'}">${conc?'Conciliado':'Faltante'}</span></td></tr>`;
+  }).join('')}
+  ${sobrantes.map(imei=>`<tr><td>${esc(imei)}</td><td>—</td><td>—</td><td class="tc"><span class="chip" style="background:#dbeafe;color:#1d4ed8">Sobrante</span></td></tr>`).join('')}
+  </tbody></table>`:'<p class="empty">Sin registros de inventario serializado</p>';
+
+  const accesoriosTable=accItems.length?`
+  <table><thead>
+    <tr class="cont-row"><td colspan="7">Inventario de Accesorios — continuación en pág. siguiente</td></tr>
+    <tr><th>SKU</th><th>Descripción</th><th>Subinventario</th><th>Localizador</th><th class="tr">Oracle</th><th class="tr">Físico</th><th class="tr">Diferencia</th></tr>
+  </thead><tbody>
+  ${accItems.map(it=>{
+    const o=parseFloat(it.oracle),c=parseFloat(it.contado);
+    const d=(!isNaN(o)&&!isNaN(c))?(c-o):null;
+    const ds=d===null?'—':d===0?'0':d>0?`+${d}`:`${d}`;
+    const dc=d===null?'':(d===0?'#16a34a':d<0?'#dc2626':'#2563eb');
+    return `<tr${d!==null&&d!==0?' class="flag"':''}><td>${esc(it.sku)}</td><td>${esc(it.descripcion)}</td><td>${esc(it.subinventario)}</td><td>${esc(it.localizador)}</td><td class="tr">${isNaN(o)?'—':o}</td><td class="tr">${isNaN(c)?'—':c}</td><td class="tr" style="color:${dc};font-weight:600">${ds}</td></tr>`;
+  }).join('')}
+  </tbody></table>`:'<p class="empty">Sin accesorios registrados</p>';
+
+  const cantadosTable=rp.length?`
+  <table style="font-size:9px;table-layout:fixed;width:100%;min-width:900px"><colgroup>
+    <col style="width:72px"/><col style="width:80px"/><col style="width:82px"/>
+    <col style="width:110px"/><col style="width:70px"/><col style="width:90px"/>
+    <col style="width:68px"/><col style="width:72px"/><col style="width:52px"/>
+    <col style="width:48px"/><col style="width:58px"/><col style="width:68px"/>
+    <col style="width:58px"/><col style="width:66px"/><col style="width:auto"/>
+  </colgroup><thead>
+    <tr class="cont-row"><td colspan="15">Revisión de Líneas — Semana ${semana} — continuación en pág. siguiente</td></tr>
+    <tr><th>Fecha</th><th>Folio</th><th>Teléfono</th><th>Ejecutivo</th><th>Plan</th><th>Equipo</th>
+    <th>Cantado</th><th>Estatus</th><th class="tc">Ctas. Lig.</th><th class="tc">Cotejo</th>
+    <th class="tc">Llamada</th><th class="tc">Correo Val.</th><th class="tc">Consumos</th>
+    <th class="tc">Expediente</th><th>Comentarios</th></tr>
+  </thead><tbody>
+  ${rp.map(r=>{
+    const flag=r.cantado==='Incorrecto'||isCbPot(r);
+    const cantChip=r.cantado?`<span class="chip ${r.cantado==='Correcto'?'chip-ok':'chip-err'}">${esc(r.cantado)}</span>`:'—';
+    const t='overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+    return `<tr${flag?' class="flag"':''}><td style="${t}">${esc(r.fecha)}</td><td style="${t}">${esc(r.folio)}</td><td style="${t}">${esc(r.telefono)}</td><td style="${t}">${esc(r.ejecutivo)}</td><td style="${t}">${esc(r.plan)}</td><td style="${t}">${esc(r.equipo)}</td><td>${cantChip}</td><td style="${t}">${esc(r.estatus)}</td><td class="tc">${esc(r.cuentasLigadas||'—')}</td><td class="tc">${esc(r.cotejo||'—')}</td><td class="tc">${esc(r.llamada||'—')}</td><td class="tc">${esc(r.correoValidacion||'—')}</td><td class="tc">${esc(r.consumos||'—')}</td><td class="tc">${esc(r.expediente||'—')}</td><td style="${t}">${esc(r.comentario||'')}</td></tr>`;
+  }).join('')}
+  </tbody></table>`:'<p class="empty">Sin registros para esta semana</p>';
+
+  const html=`<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
+<title>Supervisión ${esc(v.general.tienda||'')} ${esc(v.general.fecha||'')}</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Arial,sans-serif;font-size:12px;color:#111827;background:#f3f4f6}
+.page{max-width:1000px;margin:0 auto;background:#fff;padding-bottom:48px}
+/* print bar */
+.pbar{background:#1a1a2e;padding:10px 24px;display:flex;gap:10px;align-items:center}
+.pbar button{background:#f97316;color:#fff;border:none;padding:7px 18px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:700}
+.pbar span{font-size:11px;color:rgba(255,255,255,.6)}
+/* header */
+.hdr{background:#1a1a2e;color:#fff;padding:14px 24px;display:flex;justify-content:space-between;align-items:center}
+.hbrand{font-size:15px;font-weight:700;letter-spacing:.5px}
+.hsub{font-size:10px;opacity:.5;margin-top:3px}
+.hmeta{text-align:right;font-size:11px;opacity:.8;line-height:1.8}
+.accent{height:4px;background:linear-gradient(90deg,#f97316,#dc2626)}
+/* sections */
+.sec{margin:0 24px 24px}
+.shead{display:flex;align-items:center;gap:10px;padding:16px 0 10px;border-bottom:2px solid #f97316;margin-bottom:14px}
+.stitle{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;flex:1}
+.sbadge{font-size:10px;padding:3px 10px;border-radius:12px;font-weight:700}
+.ok{background:#dcfce7;color:#15803d}.warn{background:#fef9c3;color:#854d0e}.err{background:#fee2e2;color:#b91c1c}
+/* cards */
+.cards{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
+.kcard{flex:1;min-width:80px;background:#f8f9fa;border:1px solid #e5e7eb;border-radius:8px;padding:10px 8px;text-align:center}
+.kn{font-size:22px;font-weight:700;line-height:1.2}
+.kl{font-size:9px;color:#6b7280;text-transform:uppercase;letter-spacing:.3px;margin-top:2px}
+/* info grid */
+.igrid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
+.iblock{background:#f8f9fa;border:1px solid #e5e7eb;border-radius:8px;padding:10px 12px}
+.ibtitle{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#6b7280;margin-bottom:8px}
+.irow{display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid #f0f0f0;font-size:11px}
+.irow:last-child{border-bottom:none}
+.itotal{font-weight:700;border-top:1px solid #d1d5db;padding-top:5px;margin-top:3px}
+.dif-ok{color:#16a34a;font-weight:700}.dif-neg{color:#dc2626;font-weight:700}
+/* tables */
+table{width:100%;border-collapse:collapse;font-size:11px;margin-bottom:10px}
+thead{display:table-header-group}
+th{background:#1a1a2e;color:#fff;padding:7px 8px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:.4px;font-weight:700;white-space:nowrap}
+td{padding:5px 8px;border-bottom:1px solid #f0f0f0}
+tr:nth-child(even) td{background:#fafafa}
+tr.flag td{background:#fff1f2!important}
+.cont-row td{background:#eef2ff;color:#3730a3;font-size:8px;font-style:italic;padding:3px 8px;border-bottom:1px solid #c7d2fe;font-weight:600}
+.tr{text-align:right}.tc{text-align:center}
+.chip{display:inline-block;padding:1px 7px;border-radius:10px;font-size:9px;font-weight:700}
+.chip-ok{background:#dcfce7;color:#15803d}.chip-err{background:#fee2e2;color:#b91c1c}
+/* incidencias table */
+.inc-table th:nth-child(4){background:#7f1d1d}
+.inc-table td:nth-child(4){color:#dc2626;font-weight:700;background:#fff5f5}
+.inc-table .tot td{font-weight:700;background:#f5f5f5;border-top:2px solid #d1d5db}
+.inc-table .tot td:nth-child(4){color:#dc2626;background:#fee2e2}
+/* cb bar */
+.cbbar{display:flex;align-items:center;gap:14px;background:#f8f9fa;border:1px solid #e5e7eb;border-radius:8px;padding:12px 16px;margin-bottom:14px}
+.cblabel{font-size:12px;font-weight:700;color:#374151}
+.cbpct{font-size:32px;font-weight:700}
+.cbtag{font-size:11px;padding:4px 12px;border-radius:12px;font-weight:700}
+.cbmeta{margin-left:auto;font-size:10px;color:#6b7280}
+/* signatures */
+.sigs{display:grid;grid-template-columns:1fr 1fr;gap:60px;margin:32px 24px 0;padding-top:20px;border-top:1px solid #e5e7eb}
+.sigline{border-top:1.5px solid #374151;padding-top:6px;text-align:center}
+.signame{font-weight:700;font-size:13px;margin-top:4px}
+.sigrole{font-size:10px;color:#6b7280}
+.slabel{font-size:10px;color:#6b7280;margin-bottom:20px}
+.empty{color:#9ca3af;font-size:11px;padding:6px 0;font-style:italic}
+.sublabel{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#6b7280;margin-bottom:8px}
+.cant-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+
+/* ── PRINT ─────────────────────────────────────── */
+@media print{
+  /* Layout */
+  .pbar{display:none!important}
+  body{background:#fff;font-size:10px}
+  .page{max-width:100%;padding:0}
+  @page{size:letter portrait;margin:12mm 14mm}
+  @page:first{margin-top:8mm}
+  .cant-scroll{overflow:visible!important}
+
+  /* Keep section headers with their content */
+  .shead{break-after:avoid;border-bottom:2px solid #000!important}
+  .sec{break-inside:auto;margin:0 0 16px!important}
+  .iblock{break-inside:avoid}
+  .cbbar{break-inside:avoid}
+  .igrid{break-inside:avoid}
+  .cards{break-inside:avoid}
+
+  /* Table page break rules */
+  table{break-inside:auto}
+  thead{display:table-header-group}
+  /* Continuation banner B&W */
+  .cont-row td{background:#e8e8e8!important;color:#000!important;border-bottom:1px solid #bbb!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  tr{break-inside:avoid}
+  td,th{orphans:3;widows:3}
+
+  /* Signature: always on last page with content before it */
+  .sigs{break-before:avoid;margin-top:20px!important}
+
+  /* ── B&W COLOR OVERRIDES ── */
+  /* Header: keep dark, prints as solid dark gray — good */
+  .hdr{background:#000!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .accent{background:#000!important;height:2px!important}
+
+  /* Section badges → bordered text, no color fill */
+  .sbadge{background:#fff!important;color:#000!important;border:1px solid #000!important;padding:2px 8px!important}
+
+  /* Cards: remove colored text, use bold + symbol */
+  .kn{color:#000!important}
+  .kcard{border:1px solid #aaa!important;background:#fff!important}
+
+  /* Info blocks */
+  .iblock{background:#fff!important;border:1px solid #aaa!important}
+  .ibtitle{color:#000!important}
+  .irow{border-bottom:1px solid #ddd!important}
+  .dif-ok,.dif-neg{color:#000!important}
+
+  /* Tables */
+  th{background:#222!important;color:#fff!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  tr:nth-child(even) td{background:#f0f0f0!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  /* Flag rows: left border stripe instead of pink */
+  tr.flag td{background:#e8e8e8!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  tr.flag td:first-child{border-left:3px solid #000!important}
+
+  /* Chips: bordered, no color fill */
+  .chip{background:#fff!important;color:#000!important;border:1px solid #555!important;border-radius:0!important}
+  .chip-ok::before{content:"✓ "}
+  .chip-err::before{content:"✗ "}
+
+  /* Incidencias table CB column */
+  .inc-table th:nth-child(4){background:#444!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .inc-table td:nth-child(4){color:#000!important;background:#ebebeb!important;font-weight:700!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .inc-table .tot td{background:#ddd!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .inc-table .tot td:nth-child(4){background:#ccc!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;color:#000!important}
+
+  /* CB bar: plain bordered box */
+  .cbbar{background:#f4f4f4!important;border:1px solid #999!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .cbpct{color:#000!important}
+  .cbtag{background:#ddd!important;color:#000!important;border:1px solid #999!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .cbmeta{color:#555!important}
+  .cblabel{color:#000!important}
+
+  /* Text colors */
+  .kl,.ibtitle,.sublabel,.hsub{color:#555!important}
+  .empty{color:#555!important}
+
+  /* Signature lines */
+  .sigline{border-top:1.5px solid #000!important}
+  /* Dashboard B&W */
+  [style*="color:#16a34a"]{color:#000!important}
+  [style*="color:#dc2626"]{color:#000!important}
+  [style*="color:#d97706"],[style*="color:#f59e0b"]{color:#555!important}
+  [style*="color:#2563eb"]{color:#333!important}
+  [style*="background:#f8f9fa"]{background:#f4f4f4!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  [style*="background:#fff;"],[style*="background:#fff,"]{}
+  circle[stroke="#16a34a"]{stroke:#222!important}
+  circle[stroke="#dc2626"]{stroke:#555!important}
+  circle[stroke="#2563eb"]{stroke:#888!important}
+}
+</style></head><body>
+<div class="page">
+<div class="pbar">
+  <button onclick="window.print()">🖨️ Imprimir / Guardar PDF</button>
+  <span>Supervisión · ${esc(v.general.tienda||'—')} · ${esc(v.general.fecha||'—')}</span>
+</div>
+<div class="hdr">
+  <div><div class="hbrand">PRIME MX · Visita de Supervisión</div><div class="hsub">Informe generado automáticamente</div></div>
+  <div class="hmeta">${esc(v.general.tienda||'Sin tienda')}<br>${esc(v.general.fecha||'—')} · ${esc(v.general.gerenteRegional||'—')}</div>
+</div>
+<div class="accent"></div>
+
+<!-- DATOS GENERALES -->
+<div class="sec">
+  <div class="shead"><div class="stitle">Datos Generales</div></div>
+  <div class="igrid" style="grid-template-columns:1fr">
+    <div class="iblock">
+      <div class="irow"><span>Tienda</span><span><b>${esc(v.general.tienda||'—')}</b></span></div>
+      <div class="irow"><span>Fecha</span><span>${esc(v.general.fecha||'—')}</span></div>
+      <div class="irow"><span>Gerente de Tienda</span><span>${esc(v.general.gerenteTienda||'—')}</span></div>
+      <div class="irow"><span>Gerente Regional</span><span>${esc(v.general.gerenteRegional||'—')}</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- DASHBOARD -->
+<div style="padding:0 24px 20px">
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+
+    <!-- Caja -->
+    <div style="background:#f8f9fa;border:1px solid #e5e7eb;border-radius:10px;padding:14px">
+      <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#6b7280;margin-bottom:10px">Caja y Depósitos</div>
+      <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:10px">
+        <div style="font-size:32px;font-weight:700;color:${Math.abs(dif)<0.01?'#16a34a':'#dc2626'}">${Math.abs(dif)<0.01?'$0':''+fmt(dif)}</div>
+        <div style="font-size:11px;color:#6b7280">sobrante / faltante</div>
+      </div>
+      <div style="display:flex;gap:6px">
+        ${(()=>{const dep=v.depositos||{},filas=dep.filas||[];const fh=filas.filter(f=>f.antesDeUna==='NO').length;const sumIng=filas.reduce((s,f)=>s+(parseFloat(f.efectivoIngreso)||0),0);const sumDep=filas.reduce((s,f)=>s+(parseFloat(f.efectivoDeposito)||0),0);return[['Depositado',fmt(sumDep)],['Ingresado',fmt(sumIng)],['Fuera horario',String(fh),fh>0?'#d97706':'#374151']].map(([l,n,c])=>`<div style="flex:1;background:#fff;border:1px solid #e5e7eb;border-radius:6px;padding:6px 4px;text-align:center"><div style="font-size:11px;font-weight:600;color:${c||'#111827'}">${n}</div><div style="font-size:8px;color:#6b7280;margin-top:1px">${l}</div></div>`).join('');})()}
+        ${(()=>{const regs=(v.cancelaciones||{}).registros||[];if(!regs.length)return'';const sin=regs.filter(r=>r.soporte==='no').length;return`<div style="flex:1;background:#fff;border:1px solid #e5e7eb;border-radius:6px;padding:6px 4px;text-align:center"><div style="font-size:11px;font-weight:600;color:${sin>0?'#dc2626':'#374151'}">${sin}</div><div style="font-size:8px;color:#6b7280;margin-top:1px">Cancel. s/soporte</div></div>`;})()}
+      </div>
+    </div>
+
+    <!-- Inventario -->
+    <div style="background:#f8f9fa;border:1px solid #e5e7eb;border-radius:10px;padding:14px">
+      <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#6b7280;margin-bottom:10px">Inventario</div>
+      <div style="display:flex;gap:10px;align-items:center">
+        <svg width="80" height="80" viewBox="0 0 80 80" style="flex-shrink:0">
+          ${(()=>{
+            const tot=accConc+accFalt+accSob||1;
+            const c=accConc/tot, f=accFalt/tot, s=accSob/tot;
+            const circ=2*Math.PI*28;
+            const dc=c*circ, df=f*circ, ds=s*circ;
+            const oc=-(0), of=-(dc), os=-(dc+df);
+            return `<circle cx="40" cy="40" r="28" fill="none" stroke="#e5e7eb" stroke-width="10"/>
+            <circle cx="40" cy="40" r="28" fill="none" stroke="#16a34a" stroke-width="10" stroke-dasharray="${dc} ${circ-dc}" stroke-dashoffset="${oc}" transform="rotate(-90 40 40)"/>
+            <circle cx="40" cy="40" r="28" fill="none" stroke="#dc2626" stroke-width="10" stroke-dasharray="${df} ${circ-df}" stroke-dashoffset="${of}" transform="rotate(-90 40 40)"/>
+            <circle cx="40" cy="40" r="28" fill="none" stroke="#2563eb" stroke-width="10" stroke-dasharray="${ds} ${circ-ds}" stroke-dashoffset="${os}" transform="rotate(-90 40 40)"/>
+            <text x="40" y="36" text-anchor="middle" font-size="14" font-weight="700" fill="#111827">${accConc}</text>
+            <text x="40" y="49" text-anchor="middle" font-size="8" fill="#6b7280">concil.</text>`;
+          })()}
+        </svg>
+        <div style="flex:1">
+          <div style="display:flex;justify-content:space-between;font-size:10px;padding:3px 0;border-bottom:1px solid #f0f0f0"><span style="color:#16a34a">● Conciliados</span><b>${accConc}</b></div>
+          <div style="display:flex;justify-content:space-between;font-size:10px;padding:3px 0;border-bottom:1px solid #f0f0f0"><span style="color:#dc2626">● Faltantes</span><b>${accFalt}</b></div>
+          <div style="display:flex;justify-content:space-between;font-size:10px;padding:3px 0;border-bottom:1px solid #f0f0f0"><span style="color:#2563eb">● Sobrantes</span><b>${accSob}</b></div>
+          <div style="display:flex;justify-content:space-between;font-size:10px;padding:3px 0"><span style="color:#6b7280">IMEIs faltantes</span><b style="color:${oI.filter(i=>!eI.includes(i)).length>0?'#dc2626':'#16a34a'}">${oI.filter(i=>!eI.includes(i)).length}</b></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Cantados -->
+    <div style="background:#f8f9fa;border:1px solid #e5e7eb;border-radius:10px;padding:14px">
+      <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#6b7280;margin-bottom:10px">Cantados — ${esc(labelSemana(semana))}</div>
+      <div style="display:flex;gap:6px;margin-bottom:8px">
+        ${[[rp.length,'Total','#374151'],[rp.filter(r=>r.cuentasLigadas==='NO'&&r.cotejo==='SI'&&r.expediente).length,'Sin incidencia','#16a34a'],[rp.filter(r=>r.cuentasLigadas==='SI'||r.cotejo==='NO'||!r.expediente).filter(isAlC).length,'Con incidencia','#d97706'],[rp.filter(r=>!r.cantado).length,'Sin validar','#dc2626']].map(([n,l,c])=>`<div style="flex:1;background:#fff;border:1px solid #e5e7eb;border-radius:6px;padding:8px 4px;text-align:center"><div style="font-size:18px;font-weight:700;color:${c}">${n}</div><div style="font-size:8px;color:#6b7280;line-height:1.3;margin-top:2px">${l}</div></div>`).join('')}
+      </div>
+      <div style="font-size:9px;color:#6b7280;padding:4px 0;border-top:1px solid #e5e7eb">
+        ✓ Correcto: <b style="color:#16a34a">${rp.filter(r=>r.cantado==='Correcto').length}</b> &nbsp;·&nbsp;
+        ✗ Incorrecto: <b style="color:#dc2626">${rp.filter(r=>r.cantado==='Incorrecto').length}</b> &nbsp;·&nbsp;
+        CB Potencial: <b style="color:${cbColor}">${rp.filter(isCbPot).length}</b>
+      </div>
+    </div>
+
+    <!-- Riesgo CB -->
+    <div style="background:#f8f9fa;border:1px solid #e5e7eb;border-radius:10px;padding:14px">
+      <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#6b7280;margin-bottom:10px">Riesgo Chargeback</div>
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
+        <div style="font-size:40px;font-weight:700;color:${cbColor};line-height:1">${cbPct}%</div>
+        <div>
+          <div style="background:${cbBg};color:${cbColor};padding:3px 12px;border-radius:12px;font-size:10px;font-weight:700;display:inline-block;margin-bottom:4px">${cbLevel}</div>
+          <div style="font-size:9px;color:#6b7280">${rp.filter(isCbPot).length} de ${rp.length} cuentas en riesgo</div>
+        </div>
+      </div>
+      <div style="height:8px;background:#e5e7eb;border-radius:4px;overflow:hidden;margin-bottom:4px">
+        <div style="height:100%;width:${Math.min(cbPct,100)}%;background:${cbColor};border-radius:4px"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:8px;color:#9ca3af">
+        <span>0% Bajo</span><span>20% Medio</span><span>40%+ Alto</span>
+      </div>
+      <div style="display:flex;gap:4px;margin-top:8px">
+        ${[['Al corriente',rp.filter(r=>r.estatus==='Al corriente').length],['En Atraso',rp.filter(r=>r.estatus==='En Atraso').length],['Suspendida',rp.filter(r=>r.estatus==='Suspendida').length],['Cancelada',rp.filter(r=>r.estatus==='Cancelada').length]].map(([l,n])=>`<div style="flex:1;background:#fff;border:1px solid #e5e7eb;border-radius:4px;padding:4px 2px;text-align:center"><div style="font-size:11px;font-weight:600">${n}</div><div style="font-size:7px;color:#6b7280;line-height:1.2">${l}</div></div>`).join('')}
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- TESORERÍA -->
+<div class="sec">
+  <div class="shead">
+    <div class="stitle">Tesorería</div>
+    <span class="sbadge ${Math.abs(dif)<0.01?'ok':'err'}">${Math.abs(dif)<0.01?'Sin diferencias':fmt(dif)}</span>
+  </div>
+  <div class="igrid">
+    <div class="iblock">
+      <div class="ibtitle">Arqueo de caja</div>
+      <div class="irow"><span>Total Efectivo (Billetes + Monedas)</span><span>${fmt(ef)}</span></div>
+      <div class="irow"><span>Total Voucher's TDC y TDB</span><span>${fmt(vou)}</span></div>
+      <div class="irow"><span>Efectivo + Voucher's</span><span>${fmt(tot)}</span></div>
+      <div class="irow"><span>Ingresos del día s/ reporte</span><span>${fmt(ing)}</span></div>
+      <div class="irow itotal"><span>Sobrante / Faltante</span><span class="${Math.abs(dif)<0.01?'dif-ok':'dif-neg'}">${fmt(dif)}</span></div>
+    </div>
+    <div class="iblock">
+      <div class="ibtitle">Detalle de efectivo</div>
+      ${[1000,500,200,100,50,20].map(d=>{const c=parseFloat(a.billetes[d])||0;return c>0?`<div class="irow"><span>Billete $${d}</span><span>${c} × ${fmt(d)} = ${fmt(c*d)}</span></div>`:''}).join('')}
+      ${[20,10,5,2,1].map(d=>{const c=parseFloat(a.monedas[d])||0;return c>0?`<div class="irow"><span>Moneda $${d}</span><span>${c} × ${fmt(d)} = ${fmt(c*d)}</span></div>`:''}).join('')}
+      ${[1000,500,200,100,50,20].every(d=>!(parseFloat(a.billetes[d])||0))&&[20,10,5,2,1].every(d=>!(parseFloat(a.monedas[d])||0))?'<p class="empty">Sin detalle de efectivo</p>':''}
+    </div>
+  </div>
+  ${(()=>{
+    const dep=v.depositos||{};
+    const filas=dep.filas||[];
+    if(!filas.length) return '';
+    const sumIng=filas.reduce((s,f)=>s+(parseFloat(f.efectivoIngreso)||0),0);
+    const sumDep=filas.reduce((s,f)=>s+(parseFloat(f.efectivoDeposito)||0),0);
+    const difDep=sumDep-sumIng;
+    const fueraHorario=filas.filter(f=>f.antesDeUna==='NO').length;
+    return `
+    <div class="sublabel" style="margin-top:16px">Depósitos — ${dep.fechaInicio||''} al ${dep.fechaFin||''}</div>
+    <div class="cards" style="margin-bottom:10px">
+      ${card(filas.length,'Días registrados')}
+      ${card(fmt(sumIng),'Total ingreso')}
+      ${card(fmt(sumDep),'Total depositado')}
+      ${card(fmt(difDep),'Diferencia',Math.abs(difDep)<0.01?'#16a34a':'#dc2626')}
+      ${card(fueraHorario,'Fuera de horario',fueraHorario>0?'#d97706':'#16a34a')}
+    </div>
+    <table><thead><tr>
+      <th>Fecha</th><th>Día</th><th class="tr">Ing. Efectivo</th><th class="tr">Depositado</th><th>Papeleta</th><th class="tc">Antes 1pm</th><th class="tc">Frec. Establecida</th><th>Comentario</th>
+    </tr></thead><tbody>
+    ${filas.map(f=>{
+      const flag=f.antesDeUna==='NO'||f.frecuenciaEstablecida==='NO';
+      return '<tr'+(flag?' class="flag"':'')+'>'+
+        '<td>'+esc(f.fecha)+'</td><td>'+esc(f.dia)+'</td>'+
+        '<td class="tr">'+fmt(f.efectivoIngreso)+'</td><td class="tr">'+fmt(f.efectivoDeposito)+'</td>'+
+        '<td>'+esc(f.papeleta||'—')+'</td>'+
+        '<td class="tc" style="color:'+(f.antesDeUna==='SI'?'#16a34a':'#dc2626')+'">'+esc(f.antesDeUna||'—')+'</td>'+
+        '<td class="tc" style="color:'+(f.frecuenciaEstablecida==='SI'?'#16a34a':'#dc2626')+'">'+esc(f.frecuenciaEstablecida||'—')+'</td>'+
+        '<td>'+esc(f.comentario||'')+'</td></tr>';
+    }).join('')}
+    </tbody></table>`;
+  })()}
+  ${(()=>{
+    const cxls=v.cancelaciones||{};
+    const regs=cxls.registros||[];
+    if(!regs.length) return '';
+    const totalImp=regs.reduce((s,r)=>s+(parseFloat(r.importe)||0),0);
+    const conSoporte=regs.filter(r=>r.soporte==='si').length;
+    const sinSoporte=regs.filter(r=>r.soporte==='no').length;
+    return `
+    <div class="sublabel" style="margin-top:16px">Cancelaciones</div>
+    <div class="cards" style="margin-bottom:10px">
+      ${card(regs.length,'Total cancelaciones')}
+      ${card(fmt(totalImp),'Importe total')}
+      ${card(conSoporte,'Con soporte','#16a34a')}
+      ${card(sinSoporte,'Sin soporte',sinSoporte>0?'#dc2626':'#16a34a')}
+    </div>
+    <table><thead><tr>
+      <th>ATT UID</th><th>Orden CRM</th><th>Teléfono</th><th>Cuenta</th><th>Concepto</th><th>Método Pago</th><th class="tr">Importe</th><th class="tc">Soporte</th><th>Comentario</th>
+    </tr></thead><tbody>
+    ${regs.map(r=>'<tr'+(r.soporte==='no'?' class="flag"':'')+'>'+
+      '<td>'+esc(r.attuid||'—')+'</td><td>'+esc(r.ordenCrm||'—')+'</td>'+
+      '<td>'+esc(r.telefono||'—')+'</td><td>'+esc(r.cuenta||'—')+'</td>'+
+      '<td>'+esc(r.concepto||'—')+'</td><td>'+esc(r.metodoPago||'—')+'</td>'+
+      '<td class="tr">'+fmt(r.importe)+'</td>'+
+      '<td class="tc" style="color:'+(r.soporte==='si'?'#16a34a':'#dc2626')+'">'+(r.soporte==='si'?'Sí':'No')+'</td>'+
+      '<td>'+esc(r.comentario||'')+'</td></tr>').join('')}
+    </tbody></table>`;
+  })()}
+</div>
+
+<!-- INVENTARIOS -->
+<div class="sec" id="sec-inventarios">
+  <div class="shead">
+    <div class="stitle">Inventarios</div>
+    <span class="sbadge ${accFalt>0?'warn':'ok'}">${accFalt>0?accFalt+' faltante'+(accFalt>1?'s':''):'Sin faltantes'}</span>
+  </div>
+  <div class="sublabel">Conciliación de IMEIs</div>
+  <div class="cards">
+    ${card(oI.length,'Oracle')}
+    ${card(eI.length,'Escaneados')}
+    ${card(eI.filter(i=>oI.includes(i)).length,'Conciliados','#16a34a')}
+    ${card(oI.filter(i=>!eI.includes(i)).length,'Faltantes','#dc2626')}
+    ${card(eI.filter(i=>!oI.includes(i)).length,'Sobrantes','#2563eb')}
+  </div>
+  <div class="sublabel" style="margin-top:4px">Detalle de serializados</div>
+  ${serializadosTable}
+  <div class="sublabel" style="margin-top:16px">Inventario de accesorios</div>
+  <div class="cards">
+    ${card(accOracle,'Total Oracle')}
+    ${card(accConc,'Conciliados','#16a34a')}
+    ${card(accFalt,'Faltantes','#dc2626')}
+    ${card(accSob,'Sobrantes','#2563eb')}
+  </div>
+  ${accesoriosTable}
+</div>
+
+<!-- REVISIÓN DE LÍNEAS -->
+<div class="sec" id="sec-cantados">
+  <div class="shead">
+    <div class="stitle">Revisión de Líneas — ${esc(labelSemana(semana))}</div>
+    <span class="sbadge ${rp.filter(isCbPot).length>0?'err':'ok'}">${rp.length} registros · ${rp.filter(isCbPot).length} CB potencial</span>
+  </div>
+  <div class="cbbar">
+    <div class="cblabel">Chargeback Potencial</div>
+    <div class="cbpct" style="color:${cbColor}">${cbPct}%</div>
+    <span class="cbtag" style="background:${cbBg};color:${cbColor}">${cbLevel}</span>
+    <span class="cbmeta">${rp.filter(isCbPot).length} de ${rp.length} cuentas en riesgo</span>
+  </div>
+  <div class="sublabel">Resumen de incidencias</div>
+  <div style="display:grid;grid-template-columns:200px 1fr;gap:14px;margin-bottom:20px;align-items:start">
+    <div>
+      <div style="background:#f8f9fa;border:1px solid #e5e7eb;border-radius:8px;padding:10px 12px;margin-bottom:10px">
+        <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#6b7280;margin-bottom:8px">Resumen chargeback potencial</div>
+        <table style="width:100%;font-size:10px;margin:0">
+          <thead><tr>
+            <th style="background:#374151;padding:4px 6px;text-align:left;font-size:8px">Estatus</th>
+            <th style="background:#374151;padding:4px 6px;text-align:center;font-size:8px">Cant.</th>
+            <th style="background:#374151;padding:4px 6px;text-align:center;font-size:8px">%</th>
+          </tr></thead>
+          <tbody>
+            ${[['Al corriente',rp.filter(r=>r.estatus==='Al corriente').length],['En Atraso',rp.filter(r=>r.estatus==='En Atraso').length],['Suspendida',rp.filter(r=>r.estatus==='Suspendida').length],['Cancelada',rp.filter(r=>r.estatus==='Cancelada').length]].map(([est,cnt])=>`<tr><td style="padding:3px 6px">${est}</td><td style="text-align:center;padding:3px 6px;font-weight:700">${cnt}</td><td style="text-align:center;padding:3px 6px">${rp.length?Math.round(cnt/rp.length*100):0}%</td></tr>`).join('')}
+            <tr style="border-top:1.5px solid #d1d5db"><td style="padding:3px 6px;font-weight:700">Total</td><td style="text-align:center;padding:3px 6px;font-weight:700">${rp.length}</td><td></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div style="background:#f8f9fa;border:1px solid #e5e7eb;border-radius:8px;padding:10px 12px">
+        <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#6b7280;margin-bottom:8px">Cantados</div>
+        <table style="width:100%;font-size:10px;margin:0">
+          <tbody>
+            <tr><td style="padding:3px 6px">Correcto</td><td style="text-align:right;padding:3px 6px;font-weight:700;color:#16a34a">${rp.filter(r=>r.cantado==='Correcto').length}</td></tr>
+            <tr><td style="padding:3px 6px">Incorrecto</td><td style="text-align:right;padding:3px 6px;font-weight:700;color:#dc2626">${rp.filter(r=>r.cantado==='Incorrecto').length}</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <table class="inc-table" style="margin:0">
+      <thead><tr>
+        <th>Tipo de incidencia</th>
+        <th class="tc">Sin incidencia</th>
+        <th class="tc">Con incidencia<br><span style="font-size:8px;opacity:.7">(Al corriente)</span></th>
+        <th class="tc">Incidencias CB potencial<br><span style="font-size:8px;opacity:.8">(En Atraso / Suspendida / Cancelada)</span></th>
+      </tr></thead>
+      <tbody>
+        ${incRows.map(r=>irow(r.lbl,typeof r.si==='number'?r.si:'N/A',typeof r.no==='number'?r.no:'N/A',r.cb)).join('')}
+        <tr class="tot">
+          <td><b>Total de incidencias</b></td>
+          <td class="tc"><b>${totSi}</b></td>
+          <td class="tc"><b>${totNo}</b></td>
+          <td class="tc"><b>${totCb}</b></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="sublabel">Detalle de validaciones</div>
+  <div class="cant-scroll">${cantadosTable}</div>
+</div>
+
+<!-- FIRMAS -->
+<div class="sigs">
+  <div>
+    <div class="slabel">Gerente de Tienda</div>
+    <div class="sigline"><div class="signame">${esc(v.general.gerenteTienda||'_______________')}</div></div>
+  </div>
+  <div>
+    <div class="slabel">Gerente Regional</div>
+    <div class="sigline"><div class="signame">${esc(v.general.gerenteRegional||'_______________')}</div></div>
+  </div>
+</div>
+</div>
+</body></html>`;
+
+  const win=window.open('','_blank');
+  win.document.write(html);
+  win.document.close();
 }
 
 /* ============================================================
