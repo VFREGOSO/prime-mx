@@ -1361,7 +1361,9 @@ function renderStep(){
     cantados:renderCantados, resumen:renderResumen
   };
   const ms=document.getElementById('mainScroll');
+  const _scrollPos=ms.scrollTop;
   ms.innerHTML=(fn[key]||renderPendiente)();
+  ms.scrollTop=_scrollPos;
   const v=state.visita;
   const esFinalizableKey=SECCIONES_FINALIZABLES.includes(key);
   const yaFinalizada=esFinalizableKey&&!!(v.seccionesFinalizadas||{})[key];
@@ -2363,27 +2365,65 @@ function cargarArchivoCancel(input){
   const reader=new FileReader();
   reader.onload=e=>{
     try{
-      const wb=XLSX.read(e.target.result,{type:'array'});
-      const ws=wb.Sheets[wb.SheetNames[0]];
-      const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
-      // Header en fila 9 (índice 8), datos desde fila 10 (índice 9)
+      const wb=XLSX.read(e.target.result,{type:'array',cellDates:false});
+      // Escanear celdas directamente (ignora !ref que puede estar incorrecto)
+      // Buscar en todos los sheets la celda con valor 'Cancelado'
+      let targetWs=null, cancelCol=-1, headerRow=-1;
+      outer: for(const sn of wb.SheetNames){
+        const s=wb.Sheets[sn];
+        for(const key of Object.keys(s)){
+          if(key.startsWith('!')) continue;
+          const cell=s[key];
+          if(cell&&String(cell.v||'').trim().toLowerCase()==='cancelado'){
+            const addr=XLSX.utils.decode_cell(key);
+            targetWs=s; cancelCol=addr.c; headerRow=addr.r;
+            break outer;
+          }
+        }
+      }
       const registros=[];
-      for(let i=9;i<rows.length;i++){
-        const r=rows[i];
-        const cancelado=String(r[20]||'').trim().toUpperCase();
-        if(cancelado!=='SI')continue;
-        registros.push({
-          fecha:    String(r[21]||'').trim(),
-          attuid:   String(r[13]||'').trim(),
-          ordenCrm: String(r[1]||'').trim(),
-          telefono: String(r[8]||'').trim(),
-          cuenta:   String(r[9]||'').trim(),
-          concepto: String(r[4]||'').trim(),
-          metodoPago: normalizarMetodoPago(String(r[5]||'')),
-          importe:  parseFloat(String(r[23]||'').replace(/[^0-9.-]/g,''))||0,
-          soporte:  null,
-          comentario:''
-        });
+      if(targetWs&&headerRow>=0){
+        // Mapear todos los headers de esa fila
+        const colMap={};
+        let maxCol=0;
+        for(const key of Object.keys(targetWs)){
+          if(key.startsWith('!')) continue;
+          const a=XLSX.utils.decode_cell(key);
+          if(a.r===headerRow){
+            const cell=targetWs[key];
+            if(cell) colMap[String(cell.v||'').trim().toLowerCase()]=a.c;
+          }
+          if(a.c>maxCol) maxCol=a.c;
+        }
+        const gc=(r,name)=>{
+          const c=colMap[name];
+          if(c===undefined) return '';
+          const cell=targetWs[XLSX.utils.encode_cell({r,c})];
+          return cell?String(cell.v||'').trim():'';
+        };
+        // Encontrar fila máxima
+        let maxRow=headerRow;
+        for(const key of Object.keys(targetWs)){
+          if(key.startsWith('!')) continue;
+          const a=XLSX.utils.decode_cell(key);
+          if(a.r>maxRow) maxRow=a.r;
+        }
+        for(let r=headerRow+1;r<=maxRow;r++){
+          const cancelCell=targetWs[XLSX.utils.encode_cell({r,c:cancelCol})];
+          if(!cancelCell||String(cancelCell.v||'').trim().toUpperCase()!=='SI') continue;
+          registros.push({
+            fecha:    gc(r,'fecha de transacción')||gc(r,'fecha de transaccion'),
+            attuid:   gc(r,'attiud empleado')||gc(r,'actitud empleado'),
+            ordenCrm: gc(r,'orden crm/oms'),
+            telefono: gc(r,'telefono/cuenta'),
+            cuenta:   gc(r,'cuenta del cliente'),
+            concepto: gc(r,'concepto de pago'),
+            metodoPago: normalizarMetodoPago(gc(r,'tipo de pago')),
+            importe:  parseFloat((gc(r,'importe total')||gc(r,'importe')).replace(/[^0-9.-]/g,''))||0,
+            soporte:  null,
+            comentario:''
+          });
+        }
       }
       state.visita.cancelaciones.registros=registros;
       state.visita.cancelaciones.archivoCargado=true;
