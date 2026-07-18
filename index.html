@@ -218,6 +218,7 @@ input,select,textarea{font-family:inherit;font-size:14px}
 .data-table td{padding:9px 13px;border-bottom:1px solid var(--line);vertical-align:middle;background:#fff;color:var(--ink);font-size:13px}
 .data-table tr:last-child td{border-bottom:none}
 .data-table tr:hover td{background:var(--surface-2)}
+.sth th{position:sticky;top:0;z-index:3;background:var(--surface-2)}
 .data-table td input,.data-table td select{padding:4px 8px;border:1px solid var(--line);border-radius:var(--radius-xs);outline:none;background:var(--surface);width:100%;font-size:12px}
 .data-table td input:focus,.data-table td select:focus{border-color:var(--orange)}
 .paste-area{width:100%;padding:9px 11px;border:1.5px solid var(--line);border-radius:var(--radius-sm);font-size:12px;resize:vertical;outline:none;min-height:60px;background:var(--surface)}
@@ -1362,8 +1363,14 @@ function renderStep(){
   };
   const ms=document.getElementById('mainScroll');
   const _scrollPos=ms.scrollTop;
+  // Save scroll position of every inner scrollable container (horizontal tables, etc.)
+  const _innerScrolls=Array.from(ms.querySelectorAll('[style*="overflow:auto"],[style*="overflow-x:auto"]'))
+    .map(el=>({top:el.scrollTop,left:el.scrollLeft}));
   ms.innerHTML=(fn[key]||renderPendiente)();
   ms.scrollTop=_scrollPos;
+  // Restore inner scroll positions by index (same order as generated HTML)
+  Array.from(ms.querySelectorAll('[style*="overflow:auto"],[style*="overflow-x:auto"]'))
+    .forEach((el,i)=>{ if(_innerScrolls[i]){el.scrollTop=_innerScrolls[i].top;el.scrollLeft=_innerScrolls[i].left;} });
   const v=state.visita;
   const esFinalizableKey=SECCIONES_FINALIZABLES.includes(key);
   const yaFinalizada=esFinalizableKey&&!!(v.seccionesFinalizadas||{})[key];
@@ -2095,13 +2102,14 @@ function renderDepositos(){
     <div style="font-size:30px;margin-bottom:8px">${!rv?'❓':'📅'}</div>
     <div style="font-size:14px;font-weight:600">${modo==='excel'&&!hasFilas?'Sube el archivo Excel del reporte de cortes':!rv?'Responde la pregunta sobre recolección de Valores para ver la tabla':'Selecciona el rango de fechas y presiona <strong>Generar días</strong>'}</div>
   </div>`:`
-  <div class="card" style="overflow-x:auto">
+  <div class="card">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
       <div class="card-title" style="margin:0">REVISIÓN DE DEPÓSITOS · ${filas.length} días</div>
       ${esRecoleccion?'<span style="font-size:11px;background:#fce8e8;color:var(--red);padding:3px 10px;border-radius:20px;font-weight:700">SIN RECOLECCIÓN DE VALORES</span>':'<span style="font-size:11px;background:#e8f5e9;color:var(--green);padding:3px 10px;border-radius:20px;font-weight:700">CON RECOLECCIÓN DE VALORES</span>'}
     </div>
+    <div style="overflow:auto;max-height:60vh">
     <table class="data-table" style="min-width:${esRecoleccion?'860':'700'}px;border-collapse:collapse">
-      <thead>
+      <thead class="sth">
         ${esRecoleccion?`<tr>
           <th style="width:32px">#</th>
           <th style="${tdS}">DÍA / FECHA</th>
@@ -2134,6 +2142,7 @@ function renderDepositos(){
         <td></td>
       </tr></tfoot>
     </table>
+    </div>
   </div>
   <div class="result-grid">
     <div class="result-box"><div class="val" id="dep_res_ing">${fmt(sumEfIng)}</div><div class="lbl">EFECTIVO INGRESOS</div></div>
@@ -2339,9 +2348,9 @@ function renderCancelaciones(){
         <span class="btn btn-sm" style="pointer-events:none;font-size:12px">↺ Recargar archivo</span>
       </label>
     </div>
-    <div style="overflow-x:auto">
+    <div style="overflow:auto;max-height:60vh">
       <table style="width:100%;border-collapse:collapse;font-family:inherit">
-        <thead>
+        <thead class="sth">
           <tr style="background:var(--surface-2);border-bottom:1px solid var(--line)">
             <th style="padding:8px 8px;text-align:left;font-size:10px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em;white-space:nowrap">Fecha</th>
             <th style="padding:8px 8px;text-align:left;font-size:10px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em">ATTUID</th>
@@ -2564,9 +2573,9 @@ function renderDiferencias(){
     <div style="padding:12px 16px;background:var(--surface-2);border-bottom:1px solid var(--line)">
       <div style="font-size:12px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em">Detalle de Diferencias</div>
     </div>
-    <div style="overflow-x:auto">
+    <div style="overflow:auto;max-height:60vh">
       <table style="width:100%;border-collapse:collapse;font-family:inherit">
-        <thead>
+        <thead class="sth">
           <tr style="background:var(--surface-2);border-bottom:1px solid var(--line)">
             <th style="padding:8px;text-align:left;font-size:10px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em;white-space:nowrap">Origen</th>
             <th style="padding:8px;text-align:left;font-size:10px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em;white-space:nowrap">SKU / Artículo</th>
@@ -2668,7 +2677,7 @@ function renderOracleTable(){
         <col style="width:18%"/>
         <col style="width:14%"/>
       </colgroup>
-      <thead><tr>
+      <thead class="sth"><tr>
         ${_thSort(concilSort,'imei','IMEI','left')}
         ${_thSort(concilSort,'articulo','Artículo','left')}
         ${_thSort(concilSort,'localizador','Localizador','left')}
@@ -2714,7 +2723,7 @@ function renderConciliacion(){
     '<div id="oracleTable">'+renderOracleTable()+'</div>'+
     '</div>'+
     '<div class="card">'+
-    '<div class="card-title">2. IMEI ESCANEADOS EN TIENDA <span class="chip amber" id="escCnt">'+c.escaneados.length+'</span></div>'+
+    '<div class="card-title">2. IMEI ESCANEADOS EN TIENDA <span class="chip amber" id="escCnt" style="font-size:15px;padding:5px 13px;font-weight:800;vertical-align:middle">'+c.escaneados.length+'</span></div>'+
     '<div class="imei-input-row">'+
     '<input id="imeiInput" placeholder="Escanea o escribe IMEI y presiona Enter" onkeydown="if(event.key===\'Enter\')addImei()"/>'+
     '<button class="btn" onclick="addImei()">Agregar</button>'+
@@ -2840,6 +2849,28 @@ function closeSobranteModal(confirmed){
   if(confirmed&&window._pendingSobranteCallback)window._pendingSobranteCallback(window._pendingSobranteImei);
   window._pendingSobranteImei=null;window._pendingSobranteCallback=null;window._sobranteKeyBlocker=null;
 }
+function playImeiSound(tipo){
+  try{
+    const ctx=new(window.AudioContext||window.webkitAudioContext)();
+    const tone=(freq,start,dur,vol=0.28)=>{
+      const o=ctx.createOscillator(),g=ctx.createGain();
+      o.connect(g);g.connect(ctx.destination);
+      o.type='sine';o.frequency.value=freq;
+      g.gain.setValueAtTime(vol,ctx.currentTime+start);
+      g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+start+dur);
+      o.start(ctx.currentTime+start);o.stop(ctx.currentTime+start+dur+0.05);
+    };
+    if(tipo==='conciliado'){
+      // Beep ascendente corto (scanner OK)
+      tone(880,0,0.07);
+      tone(1320,0.09,0.09);
+    }else{
+      // Dos tonos descendentes (sobrante / alerta)
+      tone(520,0,0.12);
+      tone(340,0.16,0.18);
+    }
+  }catch(e){}
+}
 function addImei(){
   if(document.getElementById('sobranteModal'))return; // modal abierto, ignorar escaneo
   const inp=document.getElementById('imeiInput');
@@ -2851,11 +2882,13 @@ function addImei(){
   if(state.visita.conciliacion.oracleItems.length>0&&!enOracle){
     showSobranteModal(val,imei=>{
       if(!state.visita.conciliacion.escaneados.includes(imei))state.visita.conciliacion.escaneados.push(imei);
+      playImeiSound('sobrante');
       autoSave();recalcConciliacion();
     });
     return;
   }
   if(!state.visita.conciliacion.escaneados.includes(val))state.visita.conciliacion.escaneados.push(val);
+  playImeiSound('conciliado');
   autoSave();recalcConciliacion();
 }
 function removeImei(imei){state.visita.conciliacion.escaneados=state.visita.conciliacion.escaneados.filter(i=>i!==imei);autoSave();recalcConciliacion();}
@@ -3027,7 +3060,7 @@ function renderAcc(){
     const o=parseFloat(it.oracle),c=parseFloat(it.contado);
     if(!isNaN(o))totalEnMano+=o;
     if(it.contado==='')sinContar++;
-    if(!isNaN(o)&&!isNaN(c)){const d=c-o;if(d===0)con++;else if(d<0)falt++;else sob++;}
+    if(!isNaN(o)&&!isNaN(c)){const d=c-o;if(d===0)con+=o;else if(d<0)falt+=(o-c);else sob+=(c-o);}
   });
   const mkRow=(it,i)=>{
     const o=parseFloat(it.oracle),c=parseFloat(it.contado);
@@ -3074,15 +3107,15 @@ function renderAcc(){
       <div style="font-size:11px;font-weight:600;color:var(--ink-soft);margin-top:2px">TOTAL ACCESORIOS</div>
     </div>
     <div style="background:#d1fae5;border:1px solid #6ee7b7;border-radius:var(--radius-sm);padding:12px;text-align:center">
-      <div style="font-size:24px;font-weight:800;color:#065f46">${con}</div>
+      <div id="accConVal" style="font-size:24px;font-weight:800;color:#065f46">${con}</div>
       <div style="font-size:11px;font-weight:600;color:#047857;margin-top:2px">CONCILIADOS</div>
     </div>
     <div style="background:#fee2e2;border:1px solid #fca5a5;border-radius:var(--radius-sm);padding:12px;text-align:center">
-      <div style="font-size:24px;font-weight:800;color:#991b1b">${falt}</div>
+      <div id="accFaltVal" style="font-size:24px;font-weight:800;color:#991b1b">${falt}</div>
       <div style="font-size:11px;font-weight:600;color:#991b1b;margin-top:2px">FALTANTES</div>
     </div>
     <div style="background:#fef3c7;border:1px solid #fcd34d;border-radius:var(--radius-sm);padding:12px;text-align:center">
-      <div style="font-size:24px;font-weight:800;color:#92400e">${sob}</div>
+      <div id="accSobVal" style="font-size:24px;font-weight:800;color:#92400e">${sob}</div>
       <div style="font-size:11px;font-weight:600;color:#92400e;margin-top:2px">SOBRANTES</div>
     </div>
 
@@ -3106,9 +3139,9 @@ function renderAcc(){
       <label style="display:flex;align-items:center;gap:4px;font-size:12px;font-weight:700;color:var(--amber);cursor:pointer"><input type="checkbox" ${accFiltro.sobrantes?"checked":""} onchange="toggleAccFiltro('sobrantes')"/> SOBRANTES</label>
       <input type="search" placeholder="Buscar artículo, descripción o localizador…" value="${accSearch}" oninput="accSearch=this.value;filterAndRenderAccTable()" style="margin-left:auto;padding:5px 10px;border:1.5px solid var(--line);border-radius:6px;font-size:12px;width:260px;background:var(--surface);color:var(--ink)"/>
     </div>
-    <div style="overflow-x:auto">
+    <div style="overflow:auto;max-height:60vh">
       <table style="width:100%;border-collapse:collapse;font-family:inherit">
-        <thead>
+        <thead class="sth">
           <tr style="background:var(--surface-2);border-bottom:1px solid var(--line)">${buildAccThead()}</tr>
         </thead>
         <tbody id="accTbody">${filteredItems.map((it,_i)=>mkRow(it,items.indexOf(it))).join('')}</tbody>
@@ -3117,23 +3150,27 @@ function renderAcc(){
   </div>`;
 }
 function recalcAcc(){
+  let con=0,falt=0,sob=0;
   state.visita.acc.items.forEach((it,i)=>{
     const o=parseFloat(it.oracle),c=parseFloat(it.contado);
     const de=document.getElementById(`acc_d_${i}`),ee=document.getElementById(`acc_e_${i}`);
-    if(!de)return;
     if(!isNaN(o)&&!isNaN(c)){
       const d=c-o;
-      de.textContent=(d>=0?'+':'')+d;
-      de.style.color=d===0?'var(--green)':d>0?'var(--amber)':'var(--red)';
+      if(d===0)con+=o;else if(d<0)falt+=(o-c);else sob+=(c-o);
+      if(de){de.textContent=(d>=0?'+':'')+d;de.style.color=d===0?'var(--green)':d>0?'var(--amber)':'var(--red)';}
       if(ee)ee.innerHTML=d===0?'<span class="chip green">OK</span>':d>0?'<span class="chip amber">Sobrante</span>':'<span class="chip red">Faltante</span>';
     }else if(it.contado===''&&!isNaN(o)&&o>0){
-      de.textContent='—';de.style.color='var(--red)';
+      if(de){de.textContent='—';de.style.color='var(--red)';}
       if(ee)ee.innerHTML='<span class="chip red">Faltante</span>';
     }else{
-      de.textContent='—';de.style.color='var(--ink-muted)';
+      if(de){de.textContent='—';de.style.color='var(--ink-muted)';}
       if(ee)ee.innerHTML='';
     }
   });
+  const cv=document.getElementById('accConVal'),fv=document.getElementById('accFaltVal'),sv=document.getElementById('accSobVal');
+  if(cv)cv.textContent=con;
+  if(fv)fv.textContent=falt;
+  if(sv)sv.textContent=sob;
 }
 function eliminarAccManual(i){
   if(!confirm('¿Eliminar este artículo manual?'))return;
@@ -3344,8 +3381,8 @@ function renderCantados(){
         </label>
       </div>
     </div>
-    ${regsIdx.length?`<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-family:inherit">
-      <thead><tr style="background:var(--surface-2);border-bottom:1px solid var(--line)">
+    ${regsIdx.length?`<div style="overflow:auto;max-height:60vh"><table style="width:100%;border-collapse:collapse;font-family:inherit">
+      <thead class="sth"><tr style="background:var(--surface-2);border-bottom:1px solid var(--line)">
         <th style="padding:8px;text-align:left;font-size:10px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em;white-space:nowrap">Fecha</th>
         <th style="padding:8px;text-align:left;font-size:10px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em">Folio</th>
         <th style="padding:8px;text-align:left;font-size:10px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em">Teléfono</th>
@@ -3550,9 +3587,9 @@ function generarPDF(){
   // Accesorios
   const accItems=v.acc.items||[];
   const accOracle=accItems.reduce((s,i)=>s+(parseFloat(i.oracle)||0),0);
-  const accConc=accItems.filter(i=>{const o=parseFloat(i.oracle),c=parseFloat(i.contado);return !isNaN(o)&&!isNaN(c)&&c===o;}).length;
-  const accFalt=accItems.filter(i=>{const o=parseFloat(i.oracle),c=parseFloat(i.contado);return !isNaN(o)&&!isNaN(c)&&c<o;}).length;
-  const accSob=accItems.filter(i=>{const o=parseFloat(i.oracle),c=parseFloat(i.contado);return !isNaN(o)&&!isNaN(c)&&c>o;}).length;
+  const accConc=accItems.reduce((s,i)=>{const o=parseFloat(i.oracle),c=parseFloat(i.contado);return s+(!isNaN(o)&&!isNaN(c)&&c===o?o:0);},0);
+  const accFalt=accItems.reduce((s,i)=>{const o=parseFloat(i.oracle),c=parseFloat(i.contado);return s+(!isNaN(o)&&!isNaN(c)&&c<o?o-c:0);},0);
+  const accSob=accItems.reduce((s,i)=>{const o=parseFloat(i.oracle),c=parseFloat(i.contado);return s+(!isNaN(o)&&!isNaN(c)&&c>o?c-o:0);},0);
   // Cantados
   const semana=parseInt(v.cantados.semana)||getNumSemana(-4);
   const regs=v.cantados.registros||[];
