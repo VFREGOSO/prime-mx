@@ -591,6 +591,9 @@ const PASOS = [
    ============================================================ */
 const STORAGE_KEY = 'prime_supervisiones_v1';
 const AUTH_KEY    = 'prime_supervision_auth';
+// Incrementar esta fecha cada vez que se haga un reset de contraseñas en USERS
+// Esto limpia los hashes cacheados en localStorage para todos los usuarios
+const PASS_RESET_VERSION = '2026-08-19';
 let state = { visita:null, step:0, usuario:null };
 let concilFiltro = { faltantes:true, conciliados:true, sobrantes:true };
 let concilSearch = '';
@@ -662,7 +665,7 @@ function nuevaVisita() {
     conciliacion: { oracleItems:[], escaneados:[] },
     acc: { items:[] },
     diferencias: { registros:[] },
-    cantados: { semana:getNumSemana(-4), registros:[], archivoCargado:false },
+    cantados: { semana:getNumSemana(-4), registros:[], archivoCargado:false, archivoEquipoCargado:false, archivoServicioCargado:false },
     _lastStep: 0,
     iniciada: false,
     finalizada: false,
@@ -723,7 +726,21 @@ function logout() {
   hideAll(); document.getElementById('loginScreen').classList.remove('hidden');
   document.getElementById('topbarActions').style.display='none';
 }
+function syncProfilePasswords(){
+  // Si cambió PASS_RESET_VERSION, limpia hashes personalizados en localStorage
+  // para forzar el uso de las contraseñas definidas en USERS (código)
+  const lastReset=localStorage.getItem('prime_pass_reset_v');
+  if(lastReset!==PASS_RESET_VERSION){
+    try{
+      const profiles=JSON.parse(localStorage.getItem(PROFILE_KEY)||'{}');
+      Object.keys(profiles).forEach(u=>{if(profiles[u])delete profiles[u].pass;});
+      localStorage.setItem(PROFILE_KEY,JSON.stringify(profiles));
+    }catch(e){}
+    localStorage.setItem('prime_pass_reset_v',PASS_RESET_VERSION);
+  }
+}
 function checkAuth() {
+  syncProfilePasswords();
   const saved=localStorage.getItem(AUTH_KEY);
   if(saved&&USERS[saved]){state.usuario=saved;afterLogin();}
   else document.getElementById('loginScreen').classList.remove('hidden');
@@ -1510,7 +1527,7 @@ function finalizarSeccion(key){
     }
   }
   if(key==='cantados'){
-    if(!state.visita.cantados.archivoCargado){toast('Debes cargar el archivo de cantados antes de finalizar.');return;}
+    if(!state.visita.cantados.archivoEquipoCargado&&!state.visita.cantados.archivoServicioCargado&&!state.visita.cantados.archivoCargado){toast('Debes cargar al menos un archivo de cantados (Equipo o Servicio) antes de finalizar.');return;}
     const semana=parseInt(state.visita.cantados.semana)||getNumSemana(-4);
     const regsP=(state.visita.cantados.registros||[]).filter(r=>parseSemana(r.semana)===semana);
     if(!regsP.length){toast('No hay registros en el periodo seleccionado. Carga el archivo y selecciona la semana correcta.');return;}
@@ -3277,7 +3294,9 @@ function buildCantRow(r,i){
     ?`<input value="${x(val||'')}" placeholder="${ph}" oninput="state.visita.cantados.registros[${i}].${field}=this.value;autoSave()" style="width:100%;min-width:70px;font-family:inherit;font-size:11px;padding:3px 5px;border:1.5px solid var(--amber);border-radius:4px;background:#fffbeb"/>`
     :`<span style="font-size:12px">${x(val||'')}</span>`;
   const siNo=(field,val,inv=false)=>`<div id="cant_${i}_${field}" class="checklist-radio-group">${['SI','NO'].map(v=>{const isPos=v==='SI';const cls=inv?(isPos?'no':'si'):(isPos?'si':'no');return`<button class="radio-btn ${cls} ${val===v?'active':''}" data-val="${v}" onclick="setCant(${i},'${field}','${v}')">${v}</button>`;}).join('')}</div>`;
+  const tipoChip=(()=>{const t=r.tipo||'Manual';if(t==='Equipo')return'<span class="chip" style="background:#dbeafe;color:#1d4ed8;font-size:10px;padding:2px 7px">📱 Equipo</span>';if(t==='Servicio')return'<span class="chip" style="background:#ede9fe;color:#6d28d9;font-size:10px;padding:2px 7px">📋 Servicio</span>';return'<span class="chip" style="background:var(--surface-2);color:var(--ink-muted);font-size:10px;padding:2px 7px">Manual</span>';})();
   return `<tr id="cant_row_${i}" style="border-bottom:1px solid var(--line);vertical-align:middle${esBandera?';background:#fff1f2':''}">
+    <td style="padding:6px;white-space:nowrap">${tipoChip}</td>
     <td style="padding:8px;white-space:nowrap">${editCell(r.fecha,'fecha','DD/MM/AAAA')}</td>
     <td style="padding:8px;white-space:nowrap;font-family:monospace">${editCell(r.folio,'folio','Folio')}</td>
     <td style="padding:8px;white-space:nowrap">${editCell(r.telefono,'telefono','Teléfono')}</td>
@@ -3342,16 +3361,31 @@ function renderCantados(){
       ${semanaOpts}
     </select>
   </div>
-  ${!c.archivoCargado?`
-  <div class="card" style="text-align:center;padding:32px 24px">
-    <div style="font-size:36px;margin-bottom:10px">📂</div>
-    <div style="font-size:15px;font-weight:700;color:var(--ink);margin-bottom:6px">Cargar Reporte de Cantados</div>
-    <div style="font-size:13px;color:var(--ink-soft);margin-bottom:18px">Se filtra por semana seleccionada y por tienda. Puedes cargar el archivo completo.</div>
-    <label style="cursor:pointer">
-      <input type="file" accept=".xlsx,.xls" style="display:none" onchange="loadCantados(event)"/>
-      <span class="btn btn-primary" style="pointer-events:none">📁 Seleccionar archivo (.xlsx)</span>
-    </label>
-  </div>`:`
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+    ${['Equipo','Servicio'].map(tipo=>{
+      const cargado=tipo==='Equipo'?c.archivoEquipoCargado:c.archivoServicioCargado;
+      const cnt=(c.registros||[]).filter(r=>r.tipo===tipo).length;
+      const color=tipo==='Equipo'?'#2563eb':'#7c3aed';
+      const bg=tipo==='Equipo'?'#eff6ff':'#f5f3ff';
+      const border=tipo==='Equipo'?'#bfdbfe':'#ddd6fe';
+      return`<div class="card" style="padding:16px;border:1.5px solid ${cargado?color:border};background:${cargado?bg:'var(--surface)'}">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+          <span style="font-size:20px">${tipo==='Equipo'?'📱':'📋'}</span>
+          <div>
+            <div style="font-size:12px;font-weight:800;color:${cargado?color:'var(--ink)'};text-transform:uppercase;letter-spacing:.05em">Pospago ${tipo}</div>
+            <div style="font-size:11px;color:${cargado?color:'var(--ink-muted)'};">${cargado?`✓ ${cnt} registros cargados`:'Sin archivo cargado'}</div>
+          </div>
+        </div>
+        <label style="cursor:pointer;display:block">
+          <input type="file" accept=".xlsx,.xls" style="display:none" onchange="loadCantados${tipo}(event)"/>
+          <span class="btn btn-sm" style="pointer-events:none;font-size:11px;width:100%;display:block;text-align:center;background:${cargado?color:'var(--surface-2)'};color:${cargado?'#fff':'var(--ink)'};border-color:${cargado?color:'var(--line)'}">
+            ${cargado?'↺ Recargar archivo':'📁 Cargar archivo (.xlsx)'}
+          </span>
+        </label>
+      </div>`;
+    }).join('')}
+  </div>
+  ${(c.archivoEquipoCargado||c.archivoServicioCargado||c.archivoCargado)?`
 
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:16px">
     <div style="background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-sm);padding:12px;text-align:center">
@@ -3384,14 +3418,11 @@ function renderCantados(){
       </div>
       <div style="display:flex;gap:8px">
         <button class="btn btn-sm" style="font-size:12px" onclick="addCant()">+ Agregar</button>
-        <label style="cursor:pointer">
-          <input type="file" accept=".xlsx,.xls" style="display:none" onchange="loadCantados(event)"/>
-          <span class="btn btn-sm" style="pointer-events:none;font-size:12px">↺ Recargar</span>
-        </label>
       </div>
     </div>
     ${regsIdx.length?`<div id="cantTableWrap" style="overflow:auto;max-height:60vh"><table style="width:100%;border-collapse:collapse;font-family:inherit">
       <thead class="sth"><tr style="background:var(--surface-2);border-bottom:1px solid var(--line)">
+        <th style="padding:8px;text-align:left;font-size:10px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em;white-space:nowrap">Tipo</th>
         <th style="padding:8px;text-align:left;font-size:10px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em;white-space:nowrap">Fecha</th>
         <th style="padding:8px;text-align:left;font-size:10px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em">Folio</th>
         <th style="padding:8px;text-align:left;font-size:10px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em">Teléfono</th>
@@ -3412,9 +3443,13 @@ function renderCantados(){
       </tr></thead>
       <tbody id="cantTbody">${regsIdx.map(mkReg).join('')}</tbody>
     </table></div>`:`<div style="padding:32px;text-align:center;color:var(--ink-muted);font-size:14px">No hay registros para ${labelSemana(semana)}</div>`}
-  </div>`}`;
+  </div>`:''}`;
 }
-function loadCantados(evt){
+/* Legacy — kept for backward compat with old saved visits */
+function loadCantados(evt){ loadCantadosTipo(evt,'Equipo'); }
+function loadCantadosEquipo(evt){ loadCantadosTipo(evt,'Equipo'); }
+function loadCantadosServicio(evt){ loadCantadosTipo(evt,'Servicio'); }
+function loadCantadosTipo(evt,tipo){
   const f=evt.target.files[0];if(!f)return;
   const reader=new FileReader();
   reader.onload=e=>{
@@ -3425,25 +3460,37 @@ function loadCantados(evt){
       const tienda=(state.visita.general.tienda||'').toLowerCase().trim();
       let flt=rows;
       if(tienda){
-        flt=rows.filter(r=>{const t=fc(r,['Tienda','TIENDA','Punto de Venta','PDV']);return t.toLowerCase().includes(tienda)||tienda.includes(t.toLowerCase());});
+        flt=rows.filter(r=>{
+          const t=fc(r,['Tienda','TIENDA','Punto de Venta','PDV']);
+          const k=fc(r,['Clave','CLAVE']);
+          return t.toLowerCase().includes(tienda)||tienda.includes(t.toLowerCase())||
+                 k.toLowerCase().includes(tienda)||tienda.includes(k.toLowerCase());
+        });
         if(!flt.length)flt=rows;
       }
-      state.visita.cantados.registros=flt.map(r=>({
+      const nuevos=flt.map(r=>({
+        tipo,
         fecha:(fc(r,['Fecha','FECHA','Fecha Venta'])||'').split(' ')[0],
         folio:fc(r,['Folio','FOLIO']),
         telefono:fc(r,['Numero Telefonico','Número Telefónico','Teléfono','Telefono','Tel']),
         cuenta:fc(r,['Cuenta','CUENTA','No. Cuenta']),
         plan:fc(r,['Plan Tarifario','Plan','PLAN']),
-        equipo:fc(r,['Equipo','EQUIPO','Modelo','Artículo'])||'PROPIO',
+        equipo:fc(r,['Equipo','EQUIPO','Modelo','Artículo'])||'—',
         ejecutivo:[fc(r,['Nombre']),fc(r,['Apellido Paterno']),fc(r,['Apellido Materno'])].filter(Boolean).join(' '),
-        semana:parseSemana(fc(r,['Semana','SEMANA'])),
-        cantado:null,cliente:'',telefonoFijo:'',correoCliente:'',estatus:'',
-        cuentasLigadas:null,cotejo:null,llamada:'',correoValidacion:'',
-        consumos:null,expediente:'',comentario:''
+        semana:parseInt(fc(r,['Semana','SEMANA']))||getNumSemana(-4),
+        cantado:null,estatus:'',cuentasLigadas:null,cotejo:null,
+        llamada:'',correoValidacion:'',consumos:null,expediente:'',comentario:''
       }));
+      // Reemplazar solo los registros del mismo tipo, conservar los del otro tipo y manuales
+      state.visita.cantados.registros=[
+        ...state.visita.cantados.registros.filter(r=>r.tipo&&r.tipo!==tipo),
+        ...nuevos
+      ];
+      if(tipo==='Equipo')state.visita.cantados.archivoEquipoCargado=true;
+      else state.visita.cantados.archivoServicioCargado=true;
       state.visita.cantados.archivoCargado=true;
       autoSave();renderStep();
-      toast(`${state.visita.cantados.registros.length} registros cargados`);
+      toast(`${nuevos.length} registros de Pospago ${tipo} cargados`);
     }catch(err){toast('Error al leer el archivo: '+err.message);}
   };
   reader.readAsBinaryString(f);
@@ -3507,7 +3554,7 @@ function setCant(i,campo,val){
 }
 function addCant(){
   const semana=parseInt(state.visita.cantados.semana)||getNumSemana(-4);
-  state.visita.cantados.registros.push({fecha:'',folio:'',telefono:'',cuenta:'',plan:'',equipo:'PROPIO',ejecutivo:'',semana,cantado:null,cliente:'',telefonoFijo:'',correoCliente:'',estatus:'',cuentasLigadas:null,cotejo:null,llamada:'',correoValidacion:'',consumos:null,expediente:'',comentario:''});
+  state.visita.cantados.registros.push({tipo:'Manual',fecha:'',folio:'',telefono:'',cuenta:'',plan:'',equipo:'',ejecutivo:'',semana,cantado:null,estatus:'',cuentasLigadas:null,cotejo:null,llamada:'',correoValidacion:'',consumos:null,expediente:'',comentario:''});
   autoSave();renderStep();
 }
 function removeCant(idx){
