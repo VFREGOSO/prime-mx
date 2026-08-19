@@ -3290,9 +3290,6 @@ function buildCantRow(r,i){
         ${['Correcto','Incorrecto'].map(v=>`<button class="radio-btn ${v==='Correcto'?'si':'no'} ${r.cantado===v?'active':''}" data-val="${v}" onclick="setCant(${i},'cantado','${v}')" style="font-size:11px">${v}</button>`).join('')}
       </div>
     </td>
-    <td style="padding:6px;min-width:110px"><input value="${x(r.cliente||'')}" placeholder="Nombre cliente" oninput="state.visita.cantados.registros[${i}].cliente=this.value;autoSave()" style="width:100%;font-family:inherit;font-size:11px;padding:3px 5px;border:1px solid var(--line);border-radius:4px"/></td>
-    <td style="padding:6px;white-space:nowrap"><input value="${x(r.telefonoFijo||'')}" placeholder="Tel. fijo" oninput="state.visita.cantados.registros[${i}].telefonoFijo=this.value;autoSave()" style="width:90px;font-family:inherit;font-size:11px;padding:3px 5px;border:1px solid var(--line);border-radius:4px"/></td>
-    <td style="padding:6px;min-width:120px"><input value="${x(r.correoCliente||'')}" placeholder="correo@..." oninput="state.visita.cantados.registros[${i}].correoCliente=this.value;autoSave()" style="width:100%;font-family:inherit;font-size:11px;padding:3px 5px;border:1px solid var(--line);border-radius:4px"/></td>
     <td style="padding:6px"><select onchange="setCant(${i},'estatus',this.value)" style="font-family:inherit;font-size:11px;padding:3px 5px;border:1px solid var(--line);border-radius:4px;min-width:100px"><option value="">—</option>${['Al corriente','En Atraso','Suspendida','Cancelada'].map(o=>`<option ${r.estatus===o?'selected':''} value="${o}">${o}</option>`).join('')}</select></td>
     <td style="padding:6px;text-align:center">${siNo('cuentasLigadas',r.cuentasLigadas,true)}</td>
     <td style="padding:6px;text-align:center">${siNo('cotejo',r.cotejo)}</td>
@@ -3403,9 +3400,6 @@ function renderCantados(){
         <th style="padding:8px;text-align:left;font-size:10px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em">Equipo</th>
         <th style="padding:8px;text-align:left;font-size:10px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em">Ejecutivo</th>
         <th style="padding:8px;text-align:center;font-size:10px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em">Cantado</th>
-        <th style="padding:8px;text-align:left;font-size:10px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em">Cliente</th>
-        <th style="padding:8px;text-align:left;font-size:10px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em;white-space:nowrap">Tel. Fijo</th>
-        <th style="padding:8px;text-align:left;font-size:10px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em">Correo</th>
         <th style="padding:8px;text-align:left;font-size:10px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em">Estatus</th>
         <th style="padding:8px;text-align:center;font-size:10px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em;white-space:nowrap">Ctas. Ligadas</th>
         <th style="padding:8px;text-align:center;font-size:10px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em">Cotejo</th>
