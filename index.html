@@ -1533,9 +1533,6 @@ function finalizarSeccion(key){
     if(!regsP.length){toast('No hay registros en el periodo seleccionado. Carga el archivo y selecciona la semana correcta.');return;}
     const campos=[
       {k:'cantado',   lbl:'Cantado'},
-      {k:'cliente',   lbl:'Cliente'},
-      {k:'telefonoFijo', lbl:'Tel. Fijo'},
-      {k:'correoCliente',lbl:'Correo'},
       {k:'estatus',   lbl:'Estatus'},
       {k:'cuentasLigadas',lbl:'Cuentas Ligadas'},
       {k:'cotejo',    lbl:'Cotejo'},
@@ -3463,8 +3460,8 @@ function loadCantadosTipo(evt,tipo){
         flt=rows.filter(r=>{
           const t=fc(r,['Tienda','TIENDA','Punto de Venta','PDV']);
           const k=fc(r,['Clave','CLAVE']);
-          return t.toLowerCase().includes(tienda)||tienda.includes(t.toLowerCase())||
-                 k.toLowerCase().includes(tienda)||tienda.includes(k.toLowerCase());
+          const tl=t.toLowerCase(),kl=k.toLowerCase();
+          return tl===tienda||kl===tienda||tl.includes(tienda)||kl.includes(tienda);
         });
         if(!flt.length)flt=rows;
       }
@@ -3502,8 +3499,8 @@ function refreshCantEditCells(i){
   const row=document.getElementById(`cant_row_${i}`);
   if(!row)return;
   const cells=row.querySelectorAll('td');
-  [{idx:0,f:'fecha',ph:'DD/MM/AAAA'},{idx:1,f:'folio',ph:'Folio'},{idx:2,f:'telefono',ph:'Teléfono'},
-   {idx:3,f:'cuenta',ph:'Cuenta'},{idx:4,f:'plan',ph:'Plan'},{idx:5,f:'equipo',ph:'Equipo'}].forEach(({idx,f,ph})=>{
+  [{idx:1,f:'fecha',ph:'DD/MM/AAAA'},{idx:2,f:'folio',ph:'Folio'},{idx:3,f:'telefono',ph:'Teléfono'},
+   {idx:4,f:'cuenta',ph:'Cuenta'},{idx:5,f:'plan',ph:'Plan'},{idx:6,f:'equipo',ph:'Equipo'}].forEach(({idx,f,ph})=>{
     const td=cells[idx];if(!td)return;
     const val=x(reg[f]||'');
     if(inc){
